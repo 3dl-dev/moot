@@ -13,6 +13,7 @@ import {
   type Engagement,
 } from "@/lib/nostr";
 import { isMuted, useMutes } from "@/lib/mute";
+import { isNsfw, useShowNsfw } from "@/lib/nsfw";
 import { PostRow } from "./PostRow";
 import { ReplyBox } from "./parts";
 import type { View } from "@/lib/nav";
@@ -50,6 +51,7 @@ export function HomeFeed({ onNavigate }: { onNavigate: (v: View) => void }) {
   const [composing, setComposing] = useState(false);
   const [posting, setPosting] = useState(false);
   useMutes();
+  const showNsfw = useShowNsfw();
   const reqId = useRef(0);
 
   useEffect(() => {
@@ -80,7 +82,7 @@ export function HomeFeed({ onNavigate }: { onNavigate: (v: View) => void }) {
   };
 
   const active = TABS.find((t) => t.id === sort)!;
-  const visible = (events ?? []).filter((e) => !isMuted(e));
+  const visible = (events ?? []).filter((e) => !isMuted(e) && (showNsfw || !isNsfw(e)));
 
   return (
     <div className="min-w-0 flex-1">

@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import type { View } from "@/lib/nav";
 import { useMutes, muteWord, unmuteWord, clearMutes } from "@/lib/mute";
+import { useShowNsfw, setShowNsfw } from "@/lib/nsfw";
 
 /* Clean inline icons (stroke, 16px) — no glyph-font guesswork. */
 const I = {
@@ -42,6 +43,7 @@ export function LeftNav({
   onNavigate: (v: View) => void;
 }) {
   const mutes = useMutes();
+  const showNsfw = useShowNsfw();
   const [word, setWord] = useState("");
   const items: { label: string; icon: ReactNode; view?: View; activeKinds: View["kind"][] }[] = [
     { label: "Home", icon: I.home, view: { kind: "home" }, activeKinds: ["home"] },
@@ -115,6 +117,29 @@ export function LeftNav({
           className="meta hover:text-text"
         >
           browse all ›
+        </button>
+      </div>
+
+      <div className="mt-4 flex items-center justify-between rounded-md border border-border p-3">
+        <div className="min-w-0">
+          <div className="eyebrow">NSFW</div>
+          <p className="text-xs leading-relaxed text-muted">off the surface by default</p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={showNsfw}
+          aria-label="Show NSFW content"
+          onClick={() => setShowNsfw(!showNsfw)}
+          className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
+            showNsfw ? "bg-accent" : "bg-panel-2 border border-border"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+              showNsfw ? "translate-x-4" : "translate-x-0.5"
+            }`}
+          />
         </button>
       </div>
 

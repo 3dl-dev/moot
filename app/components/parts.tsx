@@ -280,6 +280,28 @@ function Embed({ src }: { src: string }) {
   );
 }
 
+/* --------------------------------------------------------------- nsfw gate */
+
+/** Blur flagged content until the reader chooses to reveal it (Show NSFW on). */
+export function NsfwGate({ children }: { children: ReactNode }) {
+  const [revealed, setRevealed] = useState(false);
+  if (revealed) return <>{children}</>;
+  return (
+    <div className="relative overflow-hidden rounded-md">
+      <div className="pointer-events-none select-none blur-xl">{children}</div>
+      <button
+        type="button"
+        onClick={() => setRevealed(true)}
+        className="absolute inset-0 flex items-center justify-center bg-bg/50"
+      >
+        <span className="rounded-full border border-border bg-panel px-2.5 py-1 text-xs font-medium text-text">
+          NSFW · tap to reveal
+        </span>
+      </button>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ composer */
 
 export function ReplyBox({
