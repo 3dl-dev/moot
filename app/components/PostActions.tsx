@@ -1,24 +1,29 @@
 "use client";
 
 import { NDKEvent } from "@nostr-dev-kit/ndk";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useNdk } from "@/app/providers";
 import { shareLink } from "@/lib/nostr";
 
 /* Inline icons */
-const Heart = ({ fill }: { fill?: boolean }) => (
-  <svg viewBox="0 0 24 24" width="15" height="15" fill={fill ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
-    <path d="M12 21s-7.5-4.6-10-9.3C.6 8.8 2.2 5.5 5.5 5.5c2 0 3.3 1.2 4.5 2.8 1.2-1.6 2.5-2.8 4.5-2.8 3.3 0 4.9 3.3 3.5 6.2C19.5 16.4 12 21 12 21z" />
+const Arrow = ({ dir }: { dir: "up" | "down" }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width="15"
+    height="15"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.25"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    style={{ transform: dir === "down" ? "rotate(180deg)" : "none" }}
+  >
+    <path d="M12 19V5M5 12l7-7 7 7" />
   </svg>
 );
 const Bubble = () => (
   <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1-4.5A8 8 0 1 1 21 12z" />
-  </svg>
-);
-const Expand = () => (
-  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
   </svg>
 );
 const Chevron = ({ open }: { open: boolean }) => (
@@ -32,34 +37,84 @@ const Share = () => (
   </svg>
 );
 
-/** Like/share logic shared by post and comment bars. */
-function useReact(event: NDKEvent) {
+/**
+ * Up/down voting via NIP-25 reactions ("+" / "-"). Switching sides or toggling
+ * off retracts the prior reaction with a NIP-09 deletion, so a user's net vote
+ * is always correct on the network — not two contradictory reactions. `baseline`
+ * is the network's current net score; the control shows baseline + your vote.
+ */
+function useVote(event: NDKEvent, baseline: number) {
   const { user, login } = useNdk();
-  const [liked, setLiked] = useState(false);
-  const [likes, setLikes] = useState(0);
-  const [shared, setShared] = useState(false);
+  const [vote, setVote] = useState<0 | 1 | -1>(0);
+  const [busy, setBusy] = useState(false);
+  const last = useRef<NDKEvent | null>(null);
 
-  const like = async () => {
+  const cast = async (dir: 1 | -1) => {
     if (!user) return login();
-    if (liked) return;
+    if (busy) return;
+    setBusy(true);
     try {
-      await event.react("+");
-      setLiked(true);
-      setLikes((n) => n + 1);
+      // Retract any prior reaction first (switching sides or toggling off).
+      if (last.current) {
+        try {
+          await last.current.delete();
+        } catch {
+          /* deletion is best-effort */
+        }
+        last.current = null;
+      }
+      if (vote === dir) {
+        setVote(0); // clicked the same arrow again → un-voted
+      } else {
+        last.current = await event.react(dir === 1 ? "+" : "-");
+        setVote(dir);
+      }
     } catch {
       /* relay rejected / cancelled */
+    } finally {
+      setBusy(false);
     }
   };
-  const share = async () => {
-    try {
-      await navigator.clipboard.writeText(shareLink(event));
-      setShared(true);
-      setTimeout(() => setShared(false), 1500);
-    } catch {
-      /* clipboard blocked */
-    }
-  };
-  return { liked, likes, shared, like, share };
+
+  return { vote, score: baseline + vote, up: () => cast(1), down: () => cast(-1) };
+}
+
+/** Reddit-style ▲ score ▼ control. The heart is dead; long live the downvote. */
+function VoteControl({ event, baseline = 0 }: { event: NDKEvent; baseline?: number }) {
+  const { vote, score, up, down } = useVote(event, baseline);
+  return (
+    <div className="inline-flex items-center">
+      <button
+        type="button"
+        aria-label="Upvote"
+        aria-pressed={vote === 1}
+        onClick={up}
+        className={`rounded p-1 transition-colors hover:bg-panel-2 ${
+          vote === 1 ? "text-accent" : "text-muted hover:text-text"
+        }`}
+      >
+        <Arrow dir="up" />
+      </button>
+      <span
+        className={`min-w-[1.5rem] text-center text-xs font-medium tabular-nums ${
+          vote === 1 ? "text-accent" : vote === -1 ? "text-sky-400" : "text-muted"
+        }`}
+      >
+        {score}
+      </span>
+      <button
+        type="button"
+        aria-label="Downvote"
+        aria-pressed={vote === -1}
+        onClick={down}
+        className={`rounded p-1 transition-colors hover:bg-panel-2 ${
+          vote === -1 ? "text-sky-400" : "text-muted hover:text-text"
+        }`}
+      >
+        <Arrow dir="down" />
+      </button>
+    </div>
+  );
 }
 
 function Btn({
@@ -87,23 +142,31 @@ function Btn({
   );
 }
 
-/** Post footer: heart+count · bubble+count · expand, share on the right. */
+/** Post footer: vote ▲▼ · comments · share. */
 export function PostActionBar({
   event,
   replyCount,
+  netScore,
   onExpand,
 }: {
   event: NDKEvent;
   replyCount?: number;
+  netScore?: number;
   onExpand?: () => void;
 }) {
-  const { liked, likes, shared, like, share } = useReact(event);
+  const [shared, setShared] = useState(false);
+  const share = async () => {
+    try {
+      await navigator.clipboard.writeText(shareLink(event));
+      setShared(true);
+      setTimeout(() => setShared(false), 1500);
+    } catch {
+      /* clipboard blocked */
+    }
+  };
   return (
     <div className="flex items-center text-muted">
-      <Btn onClick={like} active={liked} label="Like">
-        <Heart fill={liked} />
-        {likes > 0 && <span className="meta text-inherit">{likes}</span>}
-      </Btn>
+      <VoteControl event={event} baseline={netScore ?? 0} />
       <Btn onClick={onExpand} label="Comments">
         <Bubble />
         {replyCount != null && replyCount > 0 && (
@@ -119,27 +182,35 @@ export function PostActionBar({
   );
 }
 
-/** Comment footer: labeled Like / Reply / Expand / Share. */
+/** Comment footer: vote ▲▼ · Reply · Expand · Share. */
 export function CommentActionBar({
   event,
+  netScore,
   onReply,
   onToggle,
   expanded,
   canToggle,
 }: {
   event: NDKEvent;
+  netScore?: number;
   onReply?: () => void;
   onToggle?: () => void;
   expanded?: boolean;
   canToggle?: boolean;
 }) {
-  const { liked, likes, shared, like, share } = useReact(event);
+  const [shared, setShared] = useState(false);
+  const share = async () => {
+    try {
+      await navigator.clipboard.writeText(shareLink(event));
+      setShared(true);
+      setTimeout(() => setShared(false), 1500);
+    } catch {
+      /* clipboard blocked */
+    }
+  };
   return (
     <div className="flex items-center gap-1 text-muted">
-      <Btn onClick={like} active={liked} label="Like">
-        <Heart fill={liked} />
-        <span>Like{likes > 0 ? ` ${likes}` : ""}</span>
-      </Btn>
+      <VoteControl event={event} baseline={netScore ?? 0} />
       <Btn onClick={onReply} label="Reply">
         <Bubble />
         <span>Reply</span>

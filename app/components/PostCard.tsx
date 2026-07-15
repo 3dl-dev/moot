@@ -20,18 +20,11 @@ export function PostCard({
         <PostCardHeader event={event} />
       </div>
       <div className="space-y-2.5 p-3">
-        {rank && (rank.sats > 0 || rank.reactions > 0) && (
+        {rank && rank.sats > 0 && (
           <div className="flex items-center gap-2">
-            {rank.sats > 0 && (
-              <span className="meta rounded border border-brass/40 px-1.5 py-0.5 text-brass">
-                ⚡ {rank.sats.toLocaleString()} sats
-              </span>
-            )}
-            {rank.reactions > 0 && (
-              <span className="meta rounded border border-border px-1.5 py-0.5">
-                ♥ {rank.reactions}
-              </span>
-            )}
+            <span className="meta rounded border border-brass/40 px-1.5 py-0.5 text-brass">
+              ⚡ {rank.sats.toLocaleString()} sats
+            </span>
           </div>
         )}
         <TopicChips event={event} />
@@ -40,7 +33,7 @@ export function PostCard({
         </Foldable>
       </div>
       <div className="mt-auto border-t border-border px-2 py-1.5">
-        <PostActionBar event={event} replyCount={replyCount} />
+        <PostActionBar event={event} replyCount={replyCount} netScore={rank?.reactions} />
       </div>
     </article>
   );
