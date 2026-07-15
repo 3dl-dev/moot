@@ -1,26 +1,120 @@
 @import "tailwindcss";
 
+/*
+  moot — "the assembly hall after dark."
+  Warm aubergine-ink ground, brass as the one signature accent (civic/pub
+  warmth), Nostr violet kept quiet for links/actions. Dark-only for Phase 0.
+*/
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+  --bg: #15121a; /* deep aubergine ink */
+  --panel: #1d1926; /* lifted card */
+  --panel-2: #272031; /* insets / hovers */
+  --border: #322a3f; /* hairlines */
+  --text: #ece7f1; /* warm off-white */
+  --muted: #968da4; /* warm grey-violet */
+  --accent: #a98bf2; /* Nostr violet — links & actions only */
+  --brass: #d3a24e; /* signature warm accent */
+  --brass-dim: #8f6f36;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-brass: var(--brass);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-display: var(--font-display);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px; /* dense forum scale — no oversized type */
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Wordmark / serif labels */
+.wordmark {
+  font-family: var(--font-display), Georgia, serif;
+  font-optical-sizing: auto;
+}
+
+/* Mono metadata — handles, timestamps, counts: "the record" */
+.meta {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.01em;
+  color: var(--muted);
+}
+
+/* Small serif eyebrow labels */
+.eyebrow {
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Thin scrollbars for the panes */
+.pane-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.pane-scroll::-webkit-scrollbar {
+  width: 9px;
+}
+.pane-scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 5px;
+}
+
+/* Post bodies: preserve newlines, wrap long strings */
+.post-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Quiet fade-in for feed rows */
+@keyframes rowin {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rowin {
+  animation: rowin 0.25s ease-out both;
+}
+
+/* Accessibility floor */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
 }
