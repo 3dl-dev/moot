@@ -77,6 +77,49 @@ tell a spammer's "GM" from a friend's. The three levers, strongest first:
 Scoping to a community (NIP-72) naturally drops the global-firehose spam, which
 is why communities led Phase 1.
 
+## Authentication
+
+moot has no backend and holds no accounts, so "auth" means **where the private
+key lives and how moot gets signatures without touching it.** Two horizons, with
+a NIP-46 seam between them so the deferred backend forces no client rework.
+
+**Horizon 1 — client-only (now).** Adopt the `nostr-login` library, which
+injects a NIP-07-compatible `window.nostr` shim so moot's existing signing path
+barely changes, and exposes every method in one modal:
+
+- **Local key** — generate/import an `nsec`, encrypted at rest with NIP-49.
+  *Frictionless default:* one-tap key generation is the primary CTA. Tradeoff:
+  the key is in the browser heap while active, so XSS = theft. This is the
+  convenience tier, chosen deliberately for onboarding speed.
+- **NIP-46 remote signer** — key lives in a separate signer (Amber, nsec.app);
+  it never enters moot. The secure tier.
+- **Read-only `npub`** — browse as an identity without signing. Fits moot's
+  "lens over the network" framing.
+- **NIP-07** — kept for users who already have an extension.
+
+Handles: **`handle@moot.pub` via NIP-05**, served as a static
+`public/.well-known/nostr.json` (GitHub Pages sends the `Access-Control-Allow-Origin: *`
+NIP-05 requires). Registration is *curated* (PR + deploy) at this horizon.
+NIP-05 is identity/verification, **not** authentication — it's the alias on top
+of whatever signer the user uses.
+
+**Horizon 2 — custodial backend (deferred).** An Azure Functions + Table Storage
++ **Key Vault** backend adds: self-serve NIP-05 registration, and a custodial
+"sign in with OAuth (Google/email)" flow. The key architectural rule: the
+custodial holder exposes keys to moot **as a NIP-46 bunker**, so the client stays
+pure `nostr-login` with zero new auth code — all OAuth/custody complexity is
+server-side. Secrets live in Key Vault (or envelope-encrypted with the KEK in
+KV); Table Storage holds only metadata (`oauth-sub → keyref`, `handle →
+pubkey`), never raw `nsec`s.
+
+This horizon is **coupled to the hosting decision**: `handle@moot.pub` pins the
+NIP-05 file to the apex, which static Pages can't serve dynamically — so it's
+resolved *jointly* with the Phase 4 SSR → Container Apps decision (Azure Front
+Door path-routing vs. host consolidation). Tracked as an rd decision item blocked
+by the SSR decision. There is no literal OAuth into a Nostr identity — OAuth
+providers can't mint secp256k1 keys — so "sign in with Google" is necessarily
+custodial; the NIP-46 seam is what keeps that from contaminating the client.
+
 ## Hosting evolution
 
 moot ships **static** (GitHub Pages) because it needs no server today. When SEO
