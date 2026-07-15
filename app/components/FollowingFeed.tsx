@@ -32,7 +32,7 @@ export function FollowingFeed({ onNavigate }: { onNavigate: (v: View) => void })
     return (
       <Notice title="Your feed, minus the noise">
         <p>
-          <span className="font-medium text-text">Home</span> shows posts from the people you
+          <span className="font-medium text-text">Following</span> shows posts from the people you
           follow — the antidote to the raw firehose in <span className="text-text">All</span>.
         </p>
         <button
@@ -91,7 +91,7 @@ export function FollowingFeed({ onNavigate }: { onNavigate: (v: View) => void })
 function Notice({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="mx-auto max-w-md p-8 text-center">
-      <div className="eyebrow mb-1">home</div>
+      <div className="eyebrow mb-1">following</div>
       <h2 className="mb-2 text-sm font-semibold text-text">{title}</h2>
       <div className="space-y-1 text-sm text-muted">{children}</div>
     </div>

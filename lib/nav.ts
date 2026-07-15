@@ -3,6 +3,7 @@ import type { DvmProvider } from "./dvm";
 
 /** Client-side view state. Real URL routes arrive with SSR in Phase 4. */
 export type View =
+  | { kind: "home" } // default: moot's ranked front page (DVM-backed sorts)
   | { kind: "feed" } // global "the floor" — raw firehose
   | { kind: "following" } // WoT hop-1: people you follow
   | { kind: "communities" } // directory
