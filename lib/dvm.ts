@@ -30,6 +30,19 @@ export const KIND_DVM_RESULT = 6300; // job result (ranked event ids)
 export const KIND_DVM_FEEDBACK = 7000; // job feedback (status/payment)
 export const KIND_HANDLER = 31990; // NIP-89 application handler announcement
 
+/**
+ * moot's own feed DVM (see docs/dvm-feed.md). Publishes one precomputed feed per
+ * sort, each read with `readLatestDvmFeed(ndk, MOOT_DVM_PUBKEY, tag)`.
+ * npub1null3tev8jgqpk286ztpagch07hmlxfdxc0xmhkfpqfk8emsepnqnkhn88
+ */
+export const MOOT_DVM_PUBKEY = "9f3ff8af2c3c9000d947d0961ea3177fafbf992d361e6ddec9081363e770c866";
+export const MOOT_FEED_TAGS = {
+  hot: "moot-hot",
+  top: "moot-top",
+  rising: "moot-rising",
+  controversial: "moot-controversial",
+} as const;
+
 export interface DvmProvider {
   pubkey: string;
   d: string;

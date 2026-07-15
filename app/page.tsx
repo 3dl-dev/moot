@@ -4,6 +4,7 @@ import { useState } from "react";
 import { TopBar } from "./components/TopBar";
 import { LeftNav } from "./components/LeftNav";
 import { Feed } from "./components/Feed";
+import { HomeFeed } from "./components/HomeFeed";
 import { FollowingFeed } from "./components/FollowingFeed";
 import { Directory } from "./components/Directory";
 import { CommunityHeader } from "./components/CommunityHeader";
@@ -21,7 +22,7 @@ import {
 } from "@/lib/nostr";
 
 export default function Home() {
-  const [view, setView] = useState<View>({ kind: "feed" });
+  const [view, setView] = useState<View>({ kind: "home" });
 
   return (
     <div className="flex h-full flex-col">
@@ -29,6 +30,8 @@ export default function Home() {
       <div className="flex min-h-0 flex-1">
         <LeftNav current={view} onNavigate={setView} />
         <main className="pane-scroll min-w-0 flex-1 overflow-y-auto">
+          {view.kind === "home" && <HomeFeed onNavigate={setView} />}
+
           {view.kind === "following" && <FollowingFeed onNavigate={setView} />}
 
           {view.kind === "feed" && (

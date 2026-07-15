@@ -44,9 +44,9 @@ export function LeftNav({
   const mutes = useMutes();
   const [word, setWord] = useState("");
   const items: { label: string; icon: ReactNode; view?: View; activeKinds: View["kind"][] }[] = [
-    { label: "Home", icon: I.home, view: { kind: "following" }, activeKinds: ["following"] },
+    { label: "Home", icon: I.home, view: { kind: "home" }, activeKinds: ["home"] },
+    { label: "Following", icon: I.people, view: { kind: "following" }, activeKinds: ["following"] },
     { label: "All", icon: I.all, view: { kind: "feed" }, activeKinds: ["feed"] },
-    { label: "People", icon: I.people, activeKinds: [] },
     {
       label: "Communities",
       icon: I.communities,
