@@ -177,6 +177,13 @@ test("CONTROVERSIAL: downvotes fold into pushback (dissent-aware as they appear)
   assert.ok(withDown > base); // real dissent strengthens the ratio, no code switch
 });
 
+test("CONTROVERSIAL: a well-liked, well-discussed post is popular, NOT controversial", () => {
+  // The real bug: a post with lots of replies but even more likes was topping
+  // Controversial (and Hot/Top). Pushback must EXCEED endorsement to qualify.
+  assert.equal(controversyScore(sig({ replies: 7, upvotes: 9, sats: 149 })), 0);
+  assert.ok(controversyScore(sig({ replies: 12, upvotes: 3 })) > 0); // genuinely ratio'd
+});
+
 test("RISING real velocity: Δengagement per hour, never negative", () => {
   const prev = sig({ upvotes: 2 });
   const curr = sig({ upvotes: 2, repliers: 3, replies: 3 });
