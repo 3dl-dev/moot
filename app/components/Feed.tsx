@@ -227,7 +227,7 @@ export function Feed({
       )}
 
       {shown.map((event) => (
-        <PostRow key={event.id} event={event} rank={sort === "top" ? scores.get(event.id) : undefined} />
+        <PostRow key={event.id} event={event} rank={scores.get(event.id)} />
       ))}
     </div>
   );
