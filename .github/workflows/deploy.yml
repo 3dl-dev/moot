@@ -26,6 +26,7 @@ jobs:
           node-version: 24 # Active LTS (EOL 2028-04); even majors go LTS each Oct
           cache: npm
       - run: npm ci
+      - run: node --test *.test.ts # gate: a failing test fails build, so deploy (needs: build) is skipped
       - run: npm run build # next.config.ts: output: 'export' -> ./out
       - uses: actions/upload-pages-artifact@v5
         with:
