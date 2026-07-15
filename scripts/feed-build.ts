@@ -41,6 +41,7 @@ export interface FeedSnapshot {
 
 export interface BuiltFeeds {
   ids: Record<SortName, string[]>;
+  events: Map<string, NDKEvent>; // hydrated candidates, for display/hydration
   signals: Map<string, RankSignals>;
   createdAt: Map<string, number>;
   tiers: Map<string, TrustTier>;
@@ -49,8 +50,9 @@ export interface BuiltFeeds {
   stats: { candidates: number; core: number; extended: number; seeds: number; velocityReal: boolean };
 }
 
-async function followSet(ndk: NDK, pubkeys: string[]): Promise<Set<string>> {
-  if (pubkeys.length === 0) return new Set();
+/** Latest contact list per author, deduped. */
+async function contactLists(ndk: NDK, pubkeys: string[]): Promise<NDKEvent[]> {
+  if (pubkeys.length === 0) return [];
   const events = await collectEvents(
     ndk,
     { kinds: [KIND_CONTACTS as NDKKind], authors: pubkeys, limit: pubkeys.length },
@@ -61,9 +63,26 @@ async function followSet(ndk: NDK, pubkeys: string[]): Promise<Set<string>> {
     const p = latest.get(e.pubkey);
     if (!p || (e.created_at ?? 0) > (p.created_at ?? 0)) latest.set(e.pubkey, e);
   }
+  return [...latest.values()];
+}
+
+/** Union of the given accounts' follows. */
+async function followSet(ndk: NDK, pubkeys: string[]): Promise<Set<string>> {
   const set = new Set<string>();
-  for (const e of latest.values()) for (const t of e.tags) if (t[0] === "p" && t[1]) set.add(t[1]);
+  for (const e of await contactLists(ndk, pubkeys))
+    for (const t of e.tags) if (t[0] === "p" && t[1]) set.add(t[1]);
   return set;
+}
+
+/** How many of `pubkeys` follow each account (multi-vouch tally). */
+async function followVouches(ndk: NDK, pubkeys: string[]): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  for (const e of await contactLists(ndk, pubkeys)) {
+    const seen = new Set<string>();
+    for (const t of e.tags) if (t[0] === "p" && t[1]) seen.add(t[1]);
+    for (const pk of seen) counts.set(pk, (counts.get(pk) ?? 0) + 1);
+  }
+  return counts;
 }
 
 function zapper(ev: NDKEvent): string {
@@ -150,8 +169,12 @@ export async function buildRankedFeeds(
     .sort((a, b) => b[1].size - a[1].size)
     .slice(0, 30)
     .map(([pk]) => pk);
-  const core = await followSet(ndk, seed);
-  for (const pk of seed) core.add(pk);
+  // Core = the seed hubs + accounts followed by ≥2 of them (multi-vouch). A
+  // single hub's follow isn't enough — that keeps "core" tight and resistant to
+  // one compromised/idiosyncratic hub, instead of the union of everyone's follows.
+  const vouches = await followVouches(ndk, seed);
+  const core = new Set<string>(seed);
+  for (const [pk, n] of vouches) if (n >= 2) core.add(pk);
   for (const pk of core) tiers.set(pk, "core");
   const extended = await followSet(ndk, [...core].slice(0, 80));
   for (const pk of extended) if (!tiers.has(pk)) tiers.set(pk, "extended");
@@ -214,6 +237,7 @@ export async function buildRankedFeeds(
       rising,
       controversial: rankIds(SCORERS.controversial),
     },
+    events: byId,
     signals,
     createdAt: new Map(candidates.map((e) => [e.id, e.created_at ?? 0])),
     tiers,
