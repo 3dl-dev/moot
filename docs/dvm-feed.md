@@ -169,9 +169,13 @@ for those who seek it, invisible to those who don't.
 - **Conservative writer:** when moot *writes* NSFW, it sets NIP-36
   `content-warning` so every other client can gate it too.
 
-Tracked as its own build (`moot`-board) — it touches feed filtering, the
-community directory, a settings toggle, and the DVM. A moderation section in
-[design.md](design.md) is the downstream doc cascade.
+**Implemented (client-side):** `lib/nsfw.ts` — `isNsfw` reads NIP-36
+`content-warning` + NIP-32 `nsfw` labels + nsfw hashtags; every feed
+(Home sorts, All, Following, communities) excludes it unless the device's sticky
+**Show NSFW** toggle (LeftNav) is on, and even then each post is blurred until
+tapped (`NsfwGate`). Follow-ups: DVM-side SFW `moot-*` publish filter + opt-in
+`moot-*-x` NSFW ranked variants, community-directory gating, and a moderation
+section in [design.md](design.md).
 
 ## Interop invariant
 

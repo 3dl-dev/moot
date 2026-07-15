@@ -2,7 +2,8 @@
 
 import { NDKEvent } from "@nostr-dev-kit/ndk";
 import type { Engagement } from "@/lib/nostr";
-import { PostCardHeader, TopicChips, ContentBody, Foldable } from "./parts";
+import { isNsfw } from "@/lib/nsfw";
+import { PostCardHeader, TopicChips, ContentBody, Foldable, NsfwGate } from "./parts";
 import { PostActionBar } from "./PostActions";
 
 export function PostCard({
@@ -29,7 +30,13 @@ export function PostCard({
         )}
         <TopicChips event={event} />
         <Foldable>
-          <ContentBody text={event.content} />
+          {isNsfw(event) ? (
+            <NsfwGate>
+              <ContentBody text={event.content} />
+            </NsfwGate>
+          ) : (
+            <ContentBody text={event.content} />
+          )}
         </Foldable>
       </div>
       <div className="mt-auto border-t border-border px-2 py-1.5">
