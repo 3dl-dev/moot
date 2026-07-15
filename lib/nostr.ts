@@ -73,6 +73,21 @@ export function buildThread(events: NDKEvent[], rootId: string): ThreadNode[] {
 }
 
 /**
+ * Drop muted authors' comments — and their whole subtree — from a thread.
+ * A muted author's replies are theirs, so hiding the subtree is the honest
+ * behaviour (no orphaned children reparenting under someone else). Pure: the
+ * caller supplies the mute predicate, keeping this free of localStorage/React.
+ */
+export function pruneMutedThread(
+  nodes: ThreadNode[],
+  muted: (ev: NDKEvent) => boolean
+): ThreadNode[] {
+  return nodes
+    .filter((n) => !muted(n.event))
+    .map((n) => ({ event: n.event, children: pruneMutedThread(n.children, muted) }));
+}
+
+/**
  * Publish a NIP-22 (kind:1111) reply.
  * We WRITE NIP-22 — the modern comment convention you prioritized — while
  * reading both. Root scope uses uppercase tags (E/K/P), the immediate parent

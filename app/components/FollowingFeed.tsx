@@ -37,7 +37,7 @@ export function FollowingFeed({ onNavigate }: { onNavigate: (v: View) => void })
         </p>
         <button
           type="button"
-          onClick={login}
+          onClick={() => login()}
           className="mt-3 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-black"
         >
           Log in to see it

@@ -4,7 +4,7 @@ import { useNdk } from "@/app/providers";
 import { useProfile, displayName } from "@/lib/hooks";
 
 export function TopBar() {
-  const { user, login, logout, loginError, connecting } = useNdk();
+  const { user, login, logout, readOnly, connecting } = useNdk();
   const profile = useProfile(user?.pubkey);
 
   return (
@@ -25,11 +25,6 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-3">
-        {loginError && (
-          <span className="hidden max-w-xs truncate text-xs text-red-400 sm:inline">
-            {loginError}
-          </span>
-        )}
         <button
           type="button"
           className="hidden text-[0.8125rem] text-muted transition-colors hover:text-text sm:block"
@@ -38,6 +33,11 @@ export function TopBar() {
         </button>
         {user ? (
           <div className="flex items-center gap-2">
+            {readOnly && (
+              <span className="rounded-full border border-border px-2 py-0.5 text-[0.7rem] text-muted">
+                read-only
+              </span>
+            )}
             <span className="text-[0.8125rem] text-text">
               {displayName(user.pubkey, profile)}
             </span>
@@ -52,7 +52,7 @@ export function TopBar() {
         ) : (
           <button
             type="button"
-            onClick={login}
+            onClick={() => login()}
             className="rounded-md bg-accent px-3 py-1.5 text-[0.8125rem] font-medium text-black transition-opacity hover:opacity-90"
           >
             Log in

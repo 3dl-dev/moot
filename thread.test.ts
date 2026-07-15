@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { test } from "node:test";
 import type { NDKEvent } from "@nostr-dev-kit/ndk";
-import { buildThread, parentId, isTopLevelNote } from "./lib/nostr.ts";
+import { buildThread, parentId, isTopLevelNote, pruneMutedThread } from "./lib/nostr.ts";
 
 // Synthetic events mixing both threading conventions:
 //   root ── c1 (NIP-22 kind:1111) ── c3 (NIP-22 nested)
@@ -37,4 +37,26 @@ test("buildThread nests both conventions into one tree", () => {
   assert.equal(tree[1].children[0].event.id, "c4"); // NIP-10 nested
   const total = (n: typeof tree): number => n.reduce((s, x) => s + 1 + total(x.children), 0);
   assert.equal(total(tree), 4);
+});
+
+test("pruneMutedThread drops a muted author and their whole subtree", () => {
+  const tree = buildThread([c1, c2, c3, c4], "root"); // c1>c3 (a>c), c2>c4 (b>d)
+  const total = (n: ReturnType<typeof buildThread>): number =>
+    n.reduce((s, x) => s + 1 + total(x.children), 0);
+
+  // Muting author "a" (c1) removes c1 AND its child c3, even though c3's author
+  // isn't muted — a muted author's subtree goes with them.
+  const noA = pruneMutedThread(tree, (e) => e.pubkey === "a");
+  assert.equal(noA.length, 1);
+  assert.equal(noA[0].event.id, "c2");
+  assert.equal(total(noA), 2); // c2, c4
+
+  // Muting a leaf author "c" (c3) removes only that node; its parent c1 stays.
+  const noC = pruneMutedThread(tree, (e) => e.pubkey === "c");
+  assert.equal(total(noC), 3); // c1, c2, c4
+  assert.equal(noC[0].event.id, "c1");
+  assert.equal(noC[0].children.length, 0);
+
+  // No mutes → identical shape.
+  assert.equal(total(pruneMutedThread(tree, () => false)), 4);
 });

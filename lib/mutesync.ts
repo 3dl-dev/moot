@@ -1,0 +1,77 @@
+import NDK, { NDKEvent, type NDKKind } from "@nostr-dev-kit/ndk";
+import { collectEvents } from "./nostr";
+import {
+  KIND_MUTE_LIST,
+  buildMuteTags,
+  getMutes,
+  mergeRemote,
+  muteSuperset,
+  parseMuteTags,
+  setMutePublisher,
+  type Mutes,
+} from "./mute";
+
+/** Parts of the existing kind:10000 we must carry forward untouched on republish. */
+interface Preserved {
+  content: string; // NIP-04-encrypted private mutes we don't read yet — never drop them
+  tags: string[][]; // unmanaged tags (hashtags, threads, other-client entries)
+}
+
+/** Publish moot's current mutes as the user's NIP-51 kind:10000, preserving the
+ *  original encrypted content and any unmanaged tags so nothing is clobbered. */
+export async function publishMuteList(
+  ndk: NDK,
+  mutes: Mutes,
+  preserved: Preserved
+): Promise<NDKEvent> {
+  const ev = new NDKEvent(ndk);
+  ev.kind = KIND_MUTE_LIST as NDKKind;
+  ev.content = preserved.content;
+  ev.tags = buildMuteTags(mutes, preserved.tags);
+  await ev.publish();
+  return ev;
+}
+
+/**
+ * Hydrate mutes from the user's NIP-51 kind:10000 on login and keep it in sync.
+ *
+ * - Fetches the existing list and folds its public entries into local state
+ *   (union — so device-local mutes and remote mutes both survive).
+ * - When `canWrite` (i.e. not a read-only npub), registers a publisher so later
+ *   mute changes republish the list, and pushes the merged union back once if the
+ *   local list had entries the remote didn't. Read-only sessions only hydrate.
+ */
+export async function syncMutesOnLogin(
+  ndk: NDK,
+  pubkey: string,
+  canWrite: boolean
+): Promise<void> {
+  const events = await collectEvents(
+    ndk,
+    { kinds: [KIND_MUTE_LIST as NDKKind], authors: [pubkey], limit: 1 },
+    4000
+  );
+  const existing = events.sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0))[0] ?? null;
+  const remote = existing
+    ? parseMuteTags(existing.tags)
+    : { pubkeys: [], words: [], communities: [] };
+  const preserved: Preserved = { content: existing?.content ?? "", tags: existing?.tags ?? [] };
+
+  // Fold remote into local BEFORE registering the publisher, so hydrating
+  // doesn't immediately trigger a republish.
+  mergeRemote(remote);
+
+  if (!canWrite) return; // read-only npub: hydrate for filtering, never publish
+
+  setMutePublisher((mutes) => void publishMuteList(ndk, mutes, preserved).catch(() => {}));
+
+  // Push the union back only if local has entries the remote list lacked.
+  if (!muteSuperset(remote, getMutes())) {
+    await publishMuteList(ndk, getMutes(), preserved);
+  }
+}
+
+/** Stop syncing (on logout). Local mutes remain as the logged-out filter. */
+export function stopMuteSync(): void {
+  setMutePublisher(null);
+}
