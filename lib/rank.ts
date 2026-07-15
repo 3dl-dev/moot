@@ -142,17 +142,23 @@ export function risingScore(s: RankSignals, ageSeconds: number, prior = 0): numb
  * the way social media always has: a post drawing far more *argument* (replies)
  * than *endorsement* (likes) is getting **ratio'd**.
  *
- *   pushback = replies + downvotes            (argument + explicit dissent)
- *   score    = pushback² / (upvotes + 1)       (volume, amplified when likes are scarce)
+ *   pushback    = replies + downvotes         (argument + explicit dissent)
+ *   endorsement = upvotes
+ *   score       = 0 unless pushback > endorsement (a well-liked, well-discussed
+ *                 post is popular, not controversial — this is the crucial gate)
+ *               = pushback² / (endorsement + 1)  otherwise
  *
  * Downvotes fold straight into the pushback side, so as `-` reactions spread on
- * the network this smoothly becomes dissent-aware — no code switch needed. Lots
- * of replies + few likes ⇒ high; all likes, no argument ⇒ 0.
+ * the network this smoothly becomes dissent-aware — no code switch needed. Only
+ * posts drawing *more* argument than endorsement surface here, which keeps
+ * Controversial distinct from Hot/Top instead of collapsing onto the same
+ * high-engagement post.
  */
 export function controversyScore(s: RankSignals): number {
   const pushback = Math.max(0, s.replies) + Math.max(0, s.downvotes);
-  if (pushback <= 0) return 0;
-  return (pushback * pushback) / (Math.max(0, s.upvotes) + 1);
+  const endorsement = Math.max(0, s.upvotes);
+  if (pushback <= endorsement) return 0;
+  return (pushback * pushback) / (endorsement + 1);
 }
 
 /**
