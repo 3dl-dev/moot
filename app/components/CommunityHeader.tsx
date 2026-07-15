@@ -1,6 +1,7 @@
 "use client";
 
 import type { Community } from "@/lib/nostr";
+import { muteCommunity, unmuteCommunity, useMutes } from "@/lib/mute";
 import { CommunityAvatar } from "./Directory";
 
 export function CommunityHeader({
@@ -10,6 +11,9 @@ export function CommunityHeader({
   community: Community;
   onBack: () => void;
 }) {
+  const mutes = useMutes();
+  const muted = mutes.communities.includes(community.addr);
+
   return (
     <div className="border-b border-border bg-panel/40 px-4 py-3">
       <button
@@ -21,7 +25,7 @@ export function CommunityHeader({
       </button>
       <div className="flex gap-3">
         <CommunityAvatar community={community} size={48} />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="wordmark text-base font-semibold text-text">{community.name}</h1>
           {community.description && (
             <p className="mt-0.5 text-sm leading-relaxed text-muted">{community.description}</p>
@@ -31,6 +35,14 @@ export function CommunityHeader({
             NIP-72
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => (muted ? unmuteCommunity(community.addr) : muteCommunity(community.addr))}
+          title={muted ? "Show this community's posts again" : "Hide this community's posts everywhere"}
+          className="meta h-fit rounded-md border border-border px-2 py-1 hover:text-text"
+        >
+          {muted ? "muted" : "mute"}
+        </button>
       </div>
     </div>
   );

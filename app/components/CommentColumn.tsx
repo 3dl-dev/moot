@@ -1,9 +1,16 @@
 "use client";
 
 import { NDKEvent } from "@nostr-dev-kit/ndk";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNdk } from "@/app/providers";
-import { buildThread, fetchReplies, publishReply, type ThreadNode } from "@/lib/nostr";
+import {
+  buildThread,
+  fetchReplies,
+  pruneMutedThread,
+  publishReply,
+  type ThreadNode,
+} from "@/lib/nostr";
+import { isMuted, useMutes } from "@/lib/mute";
 import { CommentHeader, ContentBody, ReplyBox } from "./parts";
 import { CommentActionBar } from "./PostActions";
 
@@ -19,6 +26,7 @@ export function CommentColumn({
   onCount?: (n: number) => void;
 }) {
   const { ndk, user } = useNdk();
+  const mutes = useMutes(); // re-render + re-prune when the mute list changes
   const [tree, setTree] = useState<ThreadNode[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -33,14 +41,12 @@ export function CommentColumn({
       // Reads BOTH conventions (NIP-10 kind:1 + NIP-22 kind:1111) with a
       // hard time cap so the column never hangs on a silent relay.
       const events = await fetchReplies(ndk, root.id);
-      const t = buildThread(events, root.id);
-      setTree(t);
-      onCount?.(countNodes(t));
+      setTree(buildThread(events, root.id));
       setLoaded(true);
     } finally {
       setLoading(false);
     }
-  }, [ndk, root.id, onCount]);
+  }, [ndk, root.id]);
 
   // Fetch once, when the row scrolls near the viewport.
   useEffect(() => {
@@ -58,8 +64,19 @@ export function CommentColumn({
     }
   };
 
-  const visible = showAll ? tree : tree.slice(0, TOP_PREVIEW);
-  const hidden = tree.length - visible.length;
+  // Hide muted authors (and their subtrees) from the rendered thread. Derived so
+  // muting/unmuting reflects instantly without refetching. `mutes` is a dep so the
+  // memo recomputes when the list changes (isMuted reads the same store).
+  const shownTree = useMemo(() => pruneMutedThread(tree, isMuted), [tree, mutes]);
+  const count = useMemo(() => countNodes(shownTree), [shownTree]);
+
+  // Report the visible count to the parent, kept in sync as mutes change.
+  useEffect(() => {
+    onCount?.(count);
+  }, [count, onCount]);
+
+  const visible = showAll ? shownTree : shownTree.slice(0, TOP_PREVIEW);
+  const hidden = shownTree.length - visible.length;
 
   return (
     <div className="flex flex-col rounded-md border border-border border-l-2 border-l-brass/40 bg-panel/40 p-2.5">

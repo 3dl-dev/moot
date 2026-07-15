@@ -12,6 +12,7 @@
   "dependencies": {
     "@nostr-dev-kit/ndk": "^3.0.3",
     "next": "16.2.10",
+    "nostr-login": "^1.7.12",
     "nostr-tools": "^2.23.12",
     "react": "19.2.4",
     "react-dom": "19.2.4"
