@@ -1,0 +1,94 @@
+# moot — Design
+
+Canonical design/architecture reference for moot.pub. The narrative roadmap
+lives in [`README.md`](../README.md); the **actionable** roadmap lives in the
+local `rd` board (see [operations.md](./operations.md#work-tracking-rd-local-only-board)).
+This document is the *why*.
+
+## What moot is
+
+A Nostr-native discussion app in the Squabbles two-pane format: a post feed on
+the left, threaded comments on the right. Because it's built on Nostr, moot is a
+**lens over the global network** — it consumes and extends content from every
+other client (OddBean, Coracle, noStrudel, …), not a walled garden.
+
+## Architecture
+
+moot is a **pure client-side SPA**. There is no backend today:
+
+- All UI is `use client` React (Next.js 16 App Router, Turbopack, React 19, TS).
+- Every network interaction is browser → Nostr relays via **NDK**
+  (`@nostr-dev-kit/ndk`). No moot server sits in the path.
+- Auth is **NIP-07** (browser extension: Alby / nos2x) — no accounts, no
+  sessions on any moot infra.
+- Build is a **static export** (`next.config.ts` → `output: 'export'` → `out/`),
+  served from a CDN. See [operations.md](./operations.md).
+
+Key modules:
+
+| Module | Responsibility |
+|--------|---------------|
+| `lib/ndk.ts` | NDK singleton + relay set |
+| `lib/nostr.ts` | Event parsing, threading (`parentId`), engagement scores, feeds |
+| `lib/dvm.ts` | NIP-90 DVM feed discovery + read/live-run |
+| `lib/mute.ts` | NIP-51 mute list |
+| `lib/mentions.ts` | NIP-27 mention rendering |
+| `lib/hooks.ts`, `lib/nav.ts` | React hooks, left-nav model |
+| `app/components/*` | Two-pane UI (Feed, CommentColumn, PostCard, composers, …) |
+
+## Interop invariant (do not break)
+
+moot is a **superset reader, conservative writer**:
+
+- **READ** both threading conventions: **NIP-10** (`kind:1` replies with `e`/`p`
+  markers) *and* **NIP-22** (`kind:1111` with `E`/`K`/`P` root scope + `e`/`k`/`p`
+  parent). `lib/nostr.ts:parentId` normalizes both.
+- **WRITE** NIP-22 for replies (`kind:1111`) and `kind:1` for top-level notes.
+- Reactions = **NIP-25** (`kind:7`). Share = `nevent` via njump.
+- Communities = **NIP-72** (`kind:34550`); posts-to-community written as NIP-22
+  with the community as root scope, classic `kind:1` submissions also read.
+- Media upload = **NIP-96** with **NIP-98** auth. Mentions = **NIP-27**.
+- Engagement = NIP-25 reactions + **NIP-57** zap sats.
+
+**Rule:** when in doubt, add *reader* support for a new convention before
+*writing* it. This is what lets a moot reply show up in other clients and vice
+versa. Breaking it silently fragments moot from the network.
+
+## Ranking & the "no native karma" problem
+
+Nostr has no global vote authority. "Top" is aggregated from `kind:7` reactions
+and NIP-57 zaps across *your* relay set, so ordering is **relative, not
+canonical** — a snapshot, not a score. `fetchEngagementScores` in `lib/nostr.ts`
+weights reactions + zap sats (economic weight is the strongest anti-spam
+signal).
+
+## Anti-spam strategy (why no Bayesian filter)
+
+Spam on a permissionless network is a **trust** problem, not a **content**
+problem — **score the messenger, not the message.** Text classification can't
+tell a spammer's "GM" from a friend's. The three levers, strongest first:
+
+1. **Web-of-trust distance** — NIP-02 follows. Home = Following feed (hop-1,
+   shipped). Hop-2 is a follow-up.
+2. **Economic weight** — NIP-57 zaps and NIP-13 proof-of-work.
+3. **Delegated trust** — mutes/reports (NIP-51/NIP-56), NIP-72 approvals;
+   importable mute lists.
+
+Scoping to a community (NIP-72) naturally drops the global-firehose spam, which
+is why communities led Phase 1.
+
+## Hosting evolution
+
+moot ships **static** (GitHub Pages) because it needs no server today. When SEO
+work lands (roadmap Phase 4), SSR requires dropping `output: 'export'` and moving
+to **Azure Container Apps** (the `rudi` / `nostr-relay-bench` pattern). No
+lock-in: same repo, different build target + host. Tracked as an rd decision item
+under the Phase 4 epic. Deploy/DNS details: [operations.md](./operations.md).
+
+## Roadmap
+
+Phases (0–4) are described narratively in the README. The **source of truth for
+what to do next** is the local `rd` board, organized as six epics: Phase 2 —
+Daily driver, Anti-spam hardening, Phase 3 — Community moderation, Phase 4 —
+Reach, Deferred Phase 1 polish, and CI/CD & hosting follow-ups. Run
+`rd ready` to see actionable items.
