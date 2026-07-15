@@ -94,13 +94,19 @@ export async function discoverDvmFeeds(ndk: NDK): Promise<DvmProvider[]> {
  * Fast, no-auth path: read the provider's most recent published result and
  * reuse its ranked list. This is the "precomputed feed as a plain read" trick —
  * no job round-trip, no signing.
+ *
+ * `feedTag` selects one of several named precomputed feeds a single DVM
+ * publishes (e.g. "moot-hot", "moot-rising"), matched on the result's `t` tag.
+ * Omit it to read the DVM's latest result of any kind (back-compat).
  */
-export async function readLatestDvmFeed(ndk: NDK, providerPubkey: string): Promise<string[]> {
-  const events = await collectEvents(
-    ndk,
-    { kinds: [KIND_DVM_RESULT as NDKKind], authors: [providerPubkey], limit: 5 },
-    5000
-  );
+export async function readLatestDvmFeed(
+  ndk: NDK,
+  providerPubkey: string,
+  feedTag?: string
+): Promise<string[]> {
+  const filter: NDKFilter = { kinds: [KIND_DVM_RESULT as NDKKind], authors: [providerPubkey], limit: 5 };
+  if (feedTag) filter["#t"] = [feedTag];
+  const events = await collectEvents(ndk, filter, 5000);
   const latest = events.sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0))[0];
   return latest ? parseDvmResult(latest) : [];
 }
