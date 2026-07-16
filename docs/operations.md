@@ -84,6 +84,28 @@ nears EOL — or when a Node-runtime deprecation annotation reappears — bump
 `node-version` and the pinned action majors together. Tracked in rd under the
 CI/CD epic.
 
+## NIP-05 handles (`name@moot.pub`)
+
+Curated identity verification lives in `public/.well-known/nostr.json` (served
+at `https://moot.pub/.well-known/nostr.json`). GitHub Pages sends
+`Access-Control-Allow-Origin: *` on static assets — the header NIP-05 requires —
+and `.nojekyll` (in `public/`) keeps Pages from stripping the `.well-known`
+dot-folder. This is **identity/verification only, not auth**: it sits on top of
+whatever signer the user already uses.
+
+Registration is **curated**: to add `alice@moot.pub`, add her hex pubkey under
+`names` (and optionally her relays under `relays`) and merge — the deploy
+publishes it. Seeded with moot's own identity (`_` and `moot` → the moot DVM
+pubkey). Verify a handle resolves with:
+
+```bash
+curl -s "https://moot.pub/.well-known/nostr.json?name=moot" | jq .
+# or paste name@moot.pub into njump.me / an Amethyst NIP-05 check
+```
+
+Self-serve registration (backed by the deferred Azure identity service) is
+tracked separately under the auth epic.
+
 ## Work tracking (rd — local-only board)
 
 Work items live in a **local-only** `rd` board (rd ≥ v0.12, nostr-native):
