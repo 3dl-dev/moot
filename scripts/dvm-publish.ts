@@ -13,7 +13,14 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import NDK, { NDKEvent, NDKPrivateKeySigner, type NDKKind } from "@nostr-dev-kit/ndk";
 import { DEFAULT_RELAYS } from "../lib/ndk.ts";
-import { readLatestDvmFeed, KIND_DVM_RESULT, KIND_DVM_REQUEST, KIND_HANDLER } from "../lib/dvm.ts";
+import {
+  readLatestDvmFeed,
+  KIND_DVM_RESULT,
+  KIND_DVM_REQUEST,
+  KIND_HANDLER,
+  MOOT_TOPICS,
+  topicFeedTag,
+} from "../lib/dvm.ts";
 import { buildRankedFeeds, type SortName, type FeedSnapshot } from "./feed-build.ts";
 
 const DRY = process.argv.includes("--dry");
@@ -64,6 +71,21 @@ async function main() {
   );
   for (const s of SORTS) console.log(`  ${s.tag}: ${feeds.ids[s.name].length} posts`);
 
+  // Topic feeds — hot-ranked hashtag slices across all of Nostr. Reuse the global
+  // trust graph so we don't rebuild it per topic.
+  const topicFeeds: { tag: string; title: string; ids: string[] }[] = [];
+  for (const topic of MOOT_TOPICS) {
+    const tf = await buildRankedFeeds(ndk, {
+      hours: 12,
+      maxCandidates: 150,
+      limit: 60,
+      topicTags: topic.tags,
+      tiers: feeds.tiers,
+    });
+    topicFeeds.push({ tag: topicFeedTag(topic.slug), title: `moot · ${topic.label}`, ids: tf.ids.hot });
+    console.log(`  ${topicFeedTag(topic.slug)}: ${tf.ids.hot.length} posts`);
+  }
+
   if (DRY) {
     console.log("\ndry run — not publishing");
     process.exit(0);
@@ -86,6 +108,24 @@ async function main() {
     ];
     await ev.publish();
     console.log(`published ${s.tag}: ${ev.id.slice(0, 12)}… (${ids.length} ids)`);
+  }
+
+  // Topic feeds.
+  for (const tf of topicFeeds) {
+    if (tf.ids.length === 0) {
+      console.log(`skip ${tf.tag} (empty this window)`);
+      continue;
+    }
+    const ev = new NDKEvent(ndk);
+    ev.kind = KIND_DVM_RESULT as NDKKind;
+    ev.content = JSON.stringify(tf.ids.map((id) => ["e", id]));
+    ev.tags = [
+      ["t", tf.tag],
+      ["title", tf.title],
+      ["alt", `${tf.title} — a hot-ranked topic feed across Nostr`],
+    ];
+    await ev.publish();
+    console.log(`published ${tf.tag}: ${tf.ids.length} ids`);
   }
 
   // NIP-89 handler announcement so clients discover the DVM.

@@ -43,6 +43,30 @@ export const MOOT_FEED_TAGS = {
   controversial: "moot-controversial",
 } as const;
 
+/**
+ * Topic feeds — the antidote to ghost-town communities. Each is a hot-ranked
+ * feed drawn from matching hashtags across ALL of Nostr, so "photography on
+ * moot" is alive (the whole network's photo posts) rather than a walled-garden
+ * community with a handful of posts. Published as kind:6300 tagged
+ * `moot-topic-<slug>`; shared here so the DVM publisher and the client agree.
+ */
+export interface Topic {
+  slug: string;
+  label: string;
+  tags: string[]; // hashtags (#t values) that belong to this topic
+}
+export const MOOT_TOPICS: Topic[] = [
+  { slug: "photography", label: "Photography", tags: ["photography", "photo", "photostr", "naturephotography"] },
+  { slug: "art", label: "Art", tags: ["art", "artstr", "nostrart", "digitalart"] },
+  { slug: "bitcoin", label: "Bitcoin", tags: ["bitcoin", "btc", "bitcoinstr"] },
+  { slug: "music", label: "Music", tags: ["music", "musicstr", "nowplaying", "tunestr"] },
+  { slug: "food", label: "Food", tags: ["food", "foodstr", "cooking"] },
+  { slug: "gaming", label: "Gaming", tags: ["gaming", "gamestr", "games"] },
+  { slug: "memes", label: "Memes", tags: ["meme", "memes", "memestr"] },
+  { slug: "news", label: "News", tags: ["news", "breaking", "worldnews"] },
+];
+export const topicFeedTag = (slug: string) => `moot-topic-${slug}`;
+
 export interface DvmProvider {
   pubkey: string;
   d: string;
