@@ -1,0 +1,23 @@
+name: Uptime & cert monitor
+
+# Uptime + TLS-expiry monitoring for moot.pub (moot-1d4). A failed scheduled run
+# emails the repo owner via GitHub's default notifications — the non-zero exit
+# is the alert. No external monitoring service required.
+on:
+  schedule:
+    - cron: "17 */6 * * *" # every 6 hours (offset from :00 to dodge cron congestion)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check uptime + cert expiry
+        run: ./scripts/monitor-uptime.sh
+        env:
+          HOST: moot.pub
+          CERT_MIN_DAYS: "14"

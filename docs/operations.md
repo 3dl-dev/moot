@@ -38,9 +38,11 @@ az network dns zone show -g moot-rg -z moot.pub --query nameServers -o tsv   # N
 
 Push to `main` → `.github/workflows/deploy.yml`:
 
-1. **build** — checkout, `setup-node` (**Node 24 LTS**), `npm ci`, `npm run
-   build` (static export → `out/`), upload Pages artifact.
-2. **deploy** — `actions/deploy-pages`.
+1. **build** — checkout, `setup-node` (**Node 24 LTS**), `npm ci`, **`node --test
+   *.test.ts`** (a red suite fails the build), `npm run build` (static export →
+   `out/`), upload Pages artifact.
+2. **deploy** — `actions/deploy-pages` (`needs: build`, so it is skipped when the
+   test/build step fails).
 
 `public/CNAME` (`moot.pub`) binds the custom domain; `public/.nojekyll` keeps the
 `_next/` dir from being stripped by Jekyll.
@@ -52,9 +54,8 @@ gh run watch "$(gh run list --workflow=deploy.yml --limit 1 --json databaseId --
 gh workflow run deploy.yml
 ```
 
-> ⚠️ **Gap (tracked in rd):** the workflow does **not** run the test suite before
-> deploying — a red suite can still ship. See the "Gate the Pages deploy on the
-> test suite" item under the CI/CD epic.
+The suite gates the deploy: `node --test` runs before `npm run build`, and
+`deploy` (`needs: build`) never runs if the build job fails.
 
 ### Custom domain / TLS
 
@@ -75,14 +76,33 @@ Pages serves the last successful deploy. To roll back, revert the offending
 commit on `main` (or `git revert`) and push — the workflow redeploys the prior
 state. There is no stateful backend to migrate.
 
-## Node LTS & action-version cadence
+## Monitoring (uptime, TLS, Node cadence)
+
+Two scheduled workflows watch production; neither needs an external service — a
+failed scheduled run emails the repo owner (GitHub's default notification), so a
+non-zero exit **is** the alert. Both wrap a script you can run locally.
+
+| Workflow | Schedule | Script | Alerts when |
+|----------|----------|--------|-------------|
+| `monitor.yml` | every 6h | `scripts/monitor-uptime.sh` | moot.pub is unreachable / 5xx, or the TLS cert is within **14 days** of expiry |
+| `maintenance-reminder.yml` | monthly (1st, 09:00 UTC) | `scripts/check-node-eol.sh` | the pinned Node major is within **180 days** of EOL |
+
+```bash
+HOST=moot.pub CERT_MIN_DAYS=14 ./scripts/monitor-uptime.sh   # uptime + cert check
+EOL_WARN_DAYS=180 ./scripts/check-node-eol.sh                 # Node-EOL reminder
+# Force a run in CI:
+gh workflow run monitor.yml
+```
+
+### Node LTS & action-version cadence
 
 Node's even-numbered majors go LTS each October. The workflow pins **Node 24**
 (Active LTS, EOL **2028-04-30**) and current action majors (`checkout@v7`,
-`setup-node@v7`, `upload-pages-artifact@v5`, `deploy-pages@v5`). Before Node 24
-nears EOL — or when a Node-runtime deprecation annotation reappears — bump
-`node-version` and the pinned action majors together. Tracked in rd under the
-CI/CD epic.
+`setup-node@v7`, `upload-pages-artifact@v5`, `deploy-pages@v5`).
+`maintenance-reminder.yml` (above) fires the reminder ~180 days before EOL. When
+it fires — or when a Node-runtime deprecation annotation reappears — bump
+`node-version` **and** the pinned action majors together, update this section,
+and add the new major's EOL to `scripts/check-node-eol.sh`.
 
 ## NIP-05 handles (`name@moot.pub`)
 

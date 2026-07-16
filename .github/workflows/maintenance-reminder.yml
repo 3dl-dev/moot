@@ -1,0 +1,23 @@
+name: Maintenance reminder
+
+# Node-LTS + action-version refresh cadence (moot-894). Monthly check: fails (and
+# emails the repo owner) when the pinned Node major nears EOL, prompting a bump of
+# node-version + the pinned action majors together. See docs/operations.md
+# "Node LTS & action-version cadence".
+on:
+  schedule:
+    - cron: "0 9 1 * *" # 09:00 UTC on the 1st of each month
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  node-eol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Node EOL / action-version reminder
+        run: ./scripts/check-node-eol.sh
+        env:
+          EOL_WARN_DAYS: "180"
