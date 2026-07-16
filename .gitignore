@@ -42,3 +42,6 @@ next-env.d.ts
 
 # rd local-only board (source of truth stays on this machine)
 .ready/
+
+# local artifact from running the DVM publisher in-repo (belongs in moot-dvm)
+rising-snapshot.json
