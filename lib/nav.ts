@@ -1,5 +1,5 @@
 import type { Community } from "./nostr";
-import type { DvmProvider } from "./dvm";
+import type { DvmProvider, Topic } from "./dvm";
 
 /** Client-side view state. Real URL routes arrive with SSR in Phase 4. */
 export type View =
@@ -9,6 +9,8 @@ export type View =
   | { kind: "communities" } // directory
   | { kind: "community"; community: Community }
   | { kind: "create-community" }
+  | { kind: "topics" } // topic-feed directory (hashtag slices across Nostr)
+  | { kind: "topic"; topic: Topic }
   | { kind: "discover" } // DVM algorithmic-feed directory
   | { kind: "dvm"; provider: DvmProvider }
   | { kind: "settings" }; // sensitive-content (18+) preference lives here

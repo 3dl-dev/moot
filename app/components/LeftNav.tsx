@@ -21,6 +21,7 @@ const I = {
       <path d="M3 21h18M9 21v-5h3v5" />
     </>
   ),
+  topics: <path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18" />,
   explore: (
     <>
       <circle cx="12" cy="12" r="9" />
@@ -47,6 +48,7 @@ export function LeftNav({
   const [word, setWord] = useState("");
   const items: { label: string; icon: ReactNode; view?: View; activeKinds: View["kind"][] }[] = [
     { label: "Home", icon: I.home, view: { kind: "home" }, activeKinds: ["home"] },
+    { label: "Topics", icon: I.topics, view: { kind: "topics" }, activeKinds: ["topics", "topic"] },
     { label: "Following", icon: I.people, view: { kind: "following" }, activeKinds: ["following"] },
     { label: "All", icon: I.all, view: { kind: "feed" }, activeKinds: ["feed"] },
     {

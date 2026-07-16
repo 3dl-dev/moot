@@ -12,6 +12,7 @@ import { CreateCommunity } from "./components/CreateCommunity";
 import { DvmDirectory } from "./components/DvmDirectory";
 import { DvmFeed } from "./components/DvmFeed";
 import { ContentSettings } from "./components/ContentSettings";
+import { TopicsDirectory, TopicFeed } from "./components/Topics";
 import type { View } from "@/lib/nav";
 import { isTopLevelNote, looksLikeContent, publishNote } from "@/lib/nostr";
 
@@ -66,6 +67,14 @@ export default function Home() {
 
           {view.kind === "dvm" && (
             <DvmFeed key={view.provider.pubkey} provider={view.provider} onNavigate={setView} />
+          )}
+
+          {view.kind === "topics" && (
+            <TopicsDirectory onOpen={(topic) => setView({ kind: "topic", topic })} />
+          )}
+
+          {view.kind === "topic" && (
+            <TopicFeed key={view.topic.slug} topic={view.topic} onBack={() => setView({ kind: "topics" })} />
           )}
 
           {view.kind === "settings" && <ContentSettings />}
