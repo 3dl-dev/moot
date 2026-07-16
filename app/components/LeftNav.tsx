@@ -4,6 +4,9 @@ import { useState, type ReactNode } from "react";
 import type { View } from "@/lib/nav";
 import { useMutes, muteWord, unmuteWord, clearMutes } from "@/lib/mute";
 import { useShowNsfw } from "@/lib/nsfw";
+import { useNdk } from "@/app/providers";
+import { useLastRead, unreadCount } from "@/lib/notifications";
+import { useNotifications } from "@/lib/useNotifications";
 
 /* Clean inline icons (stroke, 16px) — no glyph-font guesswork. */
 const I = {
@@ -22,6 +25,7 @@ const I = {
     </>
   ),
   topics: <path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18" />,
+  bell: <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" />,
   explore: (
     <>
       <circle cx="12" cy="12" r="9" />
@@ -45,11 +49,32 @@ export function LeftNav({
 }) {
   const mutes = useMutes();
   const showNsfw = useShowNsfw();
+  const { user } = useNdk();
+  const notifs = useNotifications(user?.pubkey);
+  const lastRead = useLastRead(user?.pubkey);
+  const unread = unreadCount(notifs, lastRead);
   const [word, setWord] = useState("");
-  const items: { label: string; icon: ReactNode; view?: View; activeKinds: View["kind"][] }[] = [
+  const items: {
+    label: string;
+    icon: ReactNode;
+    view?: View;
+    activeKinds: View["kind"][];
+    badge?: number;
+  }[] = [
     { label: "Home", icon: I.home, view: { kind: "home" }, activeKinds: ["home"] },
     { label: "Topics", icon: I.topics, view: { kind: "topics" }, activeKinds: ["topics", "topic"] },
     { label: "Following", icon: I.people, view: { kind: "following" }, activeKinds: ["following"] },
+    ...(user
+      ? [
+          {
+            label: "Notifications",
+            icon: I.bell,
+            view: { kind: "notifications" } as View,
+            activeKinds: ["notifications"] as View["kind"][],
+            badge: unread,
+          },
+        ]
+      : []),
     { label: "All", icon: I.all, view: { kind: "feed" }, activeKinds: ["feed"] },
     {
       label: "Communities",
@@ -101,7 +126,12 @@ export function LeftNav({
                 >
                   {item.icon}
                 </svg>
-                {item.label}
+                <span className="flex-1 text-left">{item.label}</span>
+                {item.badge ? (
+                  <span className="inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-brass px-1 text-[0.6875rem] font-semibold leading-none text-black">
+                    {item.badge > 99 ? "99+" : item.badge}
+                  </span>
+                ) : null}
               </button>
             </li>
           );

@@ -12,6 +12,7 @@ import { CreateCommunity } from "./components/CreateCommunity";
 import { DvmDirectory } from "./components/DvmDirectory";
 import { DvmFeed } from "./components/DvmFeed";
 import { ContentSettings } from "./components/ContentSettings";
+import { Notifications } from "./components/Notifications";
 import { TopicsDirectory, TopicFeed } from "./components/Topics";
 import type { View } from "@/lib/nav";
 import { isTopLevelNote, looksLikeContent, publishNote } from "@/lib/nostr";
@@ -76,6 +77,8 @@ export default function Home() {
           {view.kind === "topic" && (
             <TopicFeed key={view.topic.slug} topic={view.topic} onBack={() => setView({ kind: "topics" })} />
           )}
+
+          {view.kind === "notifications" && <Notifications />}
 
           {view.kind === "settings" && <ContentSettings />}
         </main>

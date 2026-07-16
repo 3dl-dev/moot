@@ -13,4 +13,5 @@ export type View =
   | { kind: "topic"; topic: Topic }
   | { kind: "discover" } // DVM algorithmic-feed directory
   | { kind: "dvm"; provider: DvmProvider }
+  | { kind: "notifications" } // replies & mentions of the logged-in user
   | { kind: "settings" }; // sensitive-content (18+) preference lives here
