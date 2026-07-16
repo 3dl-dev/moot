@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNdk } from "@/app/providers";
 import { useLastRead, markRead, type Notification } from "@/lib/notifications";
 import { useNotifications } from "@/lib/useNotifications";
+import { usePrefs } from "@/lib/prefs";
 import { imetaUrls, shareLink } from "@/lib/nostr";
 import { CommentHeader, ContentBody, Foldable } from "./parts";
 
@@ -14,7 +15,11 @@ import { CommentHeader, ContentBody, Foldable } from "./parts";
  */
 export function Notifications() {
   const { user, connecting } = useNdk();
-  const items = useNotifications(user?.pubkey);
+  const all = useNotifications(user?.pubkey);
+  const { notifReplies, notifMentions } = usePrefs();
+  const items = all.filter(
+    (n) => (n.kind === "reply" ? notifReplies : notifMentions)
+  );
   const liveLastRead = useLastRead(user?.pubkey);
 
   // Freeze the watermark at mount so newly-arriving/opened rows stay marked as

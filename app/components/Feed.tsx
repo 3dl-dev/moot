@@ -6,6 +6,7 @@ import { useNdk } from "@/app/providers";
 import { fetchEngagementScores, engagementScore, type Engagement } from "@/lib/nostr";
 import { useMutes, isMuted } from "@/lib/mute";
 import { isNsfw, useShowNsfw } from "@/lib/nsfw";
+import { usePrefs } from "@/lib/prefs";
 import { ReplyBox } from "./parts";
 import { PostRow } from "./PostRow";
 
@@ -47,11 +48,17 @@ export function Feed({
   const [scores, setScores] = useState<Map<string, Engagement>>(new Map());
   useMutes(); // re-render when the local mute list changes
   const showNsfw = useShowNsfw();
+  const { liveScroll } = usePrefs();
 
   const known = useRef(new Set<string>()); // dedupe across shown + pending
   const shownMap = useRef(new Map<string, NDKEvent>()); // currently displayed
   const pendingMap = useRef(new Map<string, NDKEvent>()); // buffered new arrivals
   const primed = useRef(false);
+  // Read the live-scroll pref inside the subscription handler without re-subscribing.
+  const liveRef = useRef(liveScroll);
+  useEffect(() => {
+    liveRef.current = liveScroll;
+  }, [liveScroll]);
 
   const flushShown = () => {
     setPosts(
@@ -78,10 +85,12 @@ export function Feed({
     sub.on("event", (event: NDKEvent) => {
       if (!event.id || known.current.has(event.id) || !accept(event)) return;
       known.current.add(event.id);
-      if (!primed.current) {
+      if (!primed.current || liveRef.current) {
+        // Initial batch, or live-scroll on: merge straight into the visible list.
         shownMap.current.set(event.id, event);
         flushShown();
       } else {
+        // Freeze the list; queue arrivals behind the "N new posts" pill.
         pendingMap.current.set(event.id, event);
         setPendingCount(pendingMap.current.size);
       }
@@ -118,6 +127,12 @@ export function Feed({
     flushShown();
     warmScores([...shownMap.current.values()]);
   };
+
+  // Turning on live-scroll releases whatever's queued behind the pill right away.
+  useEffect(() => {
+    if (liveScroll && pendingMap.current.size > 0) showNew();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveScroll]);
 
   const submitPost = async (text: string) => {
     setPosting(true);

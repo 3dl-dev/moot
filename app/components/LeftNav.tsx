@@ -182,9 +182,9 @@ export function LeftNav({
         }`}
       >
         <div className="min-w-0">
-          <div className="eyebrow">Sensitive content</div>
+          <div className="eyebrow">Settings</div>
           <p className="text-xs leading-relaxed text-muted">
-            {showNsfw ? "shown · 18+" : "hidden · 18+ to enable"}
+            reading, notifications · 18+ {showNsfw ? "shown" : "hidden"}
           </p>
         </div>
         <span className="meta">›</span>
