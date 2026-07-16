@@ -24,6 +24,7 @@ export function Feed({
   publish,
   toolbarLabel,
   composerPlaceholder,
+  draftKey,
   header,
 }: {
   filters: NDKFilter | NDKFilter[];
@@ -31,6 +32,8 @@ export function Feed({
   publish: (ndk: NDK, text: string) => Promise<NDKEvent>;
   toolbarLabel: string;
   composerPlaceholder: string;
+  /** Stable key to autosave the composer's unsent text (see lib/drafts.ts). */
+  draftKey?: string;
   header?: ReactNode;
 }) {
   const { ndk, connecting, canSign } = useNdk();
@@ -206,6 +209,7 @@ export function Feed({
             busy={posting}
             autoFocus
             onSubmit={submitPost}
+            draftKey={draftKey}
           />
         </div>
       )}

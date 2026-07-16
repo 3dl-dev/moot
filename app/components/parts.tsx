@@ -6,6 +6,7 @@ import { useProfile, displayName, handle } from "@/lib/hooks";
 import { timeAgo } from "@/lib/nostr";
 import { decodeNostrToken } from "@/lib/mentions";
 import { mutePubkey } from "@/lib/mute";
+import { getDraft, saveDraft } from "@/lib/drafts";
 import { AttachButton } from "./AttachButton";
 
 /* --------------------------------------------------------------- avatar */
@@ -327,14 +328,22 @@ export function ReplyBox({
   busy,
   onSubmit,
   autoFocus,
+  draftKey,
 }: {
   placeholder: string;
   submitLabel?: string;
   busy?: boolean;
   onSubmit: (text: string) => void | Promise<void>;
   autoFocus?: boolean;
+  /** Stable key to autosave/restore unsent text across navigation (see lib/drafts.ts). */
+  draftKey?: string;
 }) {
-  const [text, setText] = useState("");
+  // Restore any draft for this composer on mount; persist on every change and
+  // clear (via saveDraft's blank-removes rule) once sent.
+  const [text, setText] = useState(() => (draftKey ? getDraft(draftKey) : ""));
+  useEffect(() => {
+    if (draftKey) saveDraft(draftKey, text);
+  }, [draftKey, text]);
   const send = async () => {
     const t = text.trim();
     if (!t || busy) return;

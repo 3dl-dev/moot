@@ -113,6 +113,7 @@ export function TopicFeed({ topic, onBack }: { topic: Topic; onBack: () => void 
             busy={posting}
             autoFocus
             onSubmit={submitPost}
+            draftKey={`topic:${topic.slug}`}
           />
         </div>
       )}

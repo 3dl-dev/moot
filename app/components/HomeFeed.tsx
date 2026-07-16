@@ -126,6 +126,7 @@ export function HomeFeed({ onNavigate }: { onNavigate: (v: View) => void }) {
             busy={posting}
             autoFocus
             onSubmit={submitPost}
+            draftKey="post:home"
           />
         </div>
       )}

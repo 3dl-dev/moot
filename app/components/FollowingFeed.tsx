@@ -84,6 +84,7 @@ export function FollowingFeed({ onNavigate }: { onNavigate: (v: View) => void })
       publish={(ndk, text) => publishNote(ndk, text)}
       toolbarLabel={`following · ${follows.length}`}
       composerPlaceholder="Post to Nostr…"
+      draftKey="post:following"
     />
   );
 }
