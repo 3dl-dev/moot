@@ -14,4 +14,5 @@ export type View =
   | { kind: "discover" } // DVM algorithmic-feed directory
   | { kind: "dvm"; provider: DvmProvider }
   | { kind: "notifications" } // replies & mentions of the logged-in user
+  | { kind: "saved" } // your NIP-51 kind:10003 bookmarked posts
   | { kind: "settings" }; // sensitive-content (18+) preference lives here
