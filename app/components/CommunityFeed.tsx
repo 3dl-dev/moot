@@ -26,7 +26,7 @@ import { CommunityHeader } from "./CommunityHeader";
  * "All" toggle reveals the unmoderated set (superset reader — nothing's hidden).
  */
 export function CommunityFeed({ community, onBack }: { community: Community; onBack: () => void }) {
-  const { ndk, user, canSign } = useNdk();
+  const { ndk, canSign } = useNdk();
   const [posts, setPosts] = useState<NDKEvent[] | null>(null);
   const [hasApprovals, setHasApprovals] = useState(false);
   const [showAll, setShowAll] = useState(false);

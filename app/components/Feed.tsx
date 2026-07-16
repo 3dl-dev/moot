@@ -33,7 +33,7 @@ export function Feed({
   composerPlaceholder: string;
   header?: ReactNode;
 }) {
-  const { ndk, user, connecting, canSign } = useNdk();
+  const { ndk, connecting, canSign } = useNdk();
   const [posts, setPosts] = useState<NDKEvent[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [posting, setPosting] = useState(false);
