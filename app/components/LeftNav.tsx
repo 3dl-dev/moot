@@ -7,6 +7,7 @@ import { useShowNsfw } from "@/lib/nsfw";
 import { useNdk } from "@/app/providers";
 import { useLastRead, unreadCount } from "@/lib/notifications";
 import { useNotifications } from "@/lib/useNotifications";
+import { useLists } from "@/lib/lists";
 
 /* Clean inline icons (stroke, 16px) — no glyph-font guesswork. */
 const I = {
@@ -63,6 +64,7 @@ export function LeftNav({
 }) {
   const mutes = useMutes();
   const showNsfw = useShowNsfw();
+  const lists = useLists();
   const { user } = useNdk();
   const notifs = useNotifications(user?.pubkey);
   const lastRead = useLastRead(user?.pubkey);
@@ -159,6 +161,48 @@ export function LeftNav({
           );
         })}
       </ul>
+
+      <div className="mt-5">
+        <div className="mb-1.5 flex items-center justify-between px-2.5">
+          <span className="eyebrow">Lists</span>
+          <button
+            type="button"
+            onClick={() => onNavigate({ kind: "create-list" })}
+            className="meta hover:text-text"
+            aria-label="New list"
+          >
+            + new
+          </button>
+        </div>
+        {lists.length === 0 ? (
+          <p className="px-2.5 text-xs leading-relaxed text-muted">
+            Group people into a feed. Tap <span className="text-text">+ new</span>.
+          </p>
+        ) : (
+          <ul className="space-y-0.5">
+            {lists.map((l) => {
+              const active = current.kind === "list" && current.id === l.id;
+              return (
+                <li key={l.id} className="relative">
+                  {active && (
+                    <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-brass" />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onNavigate({ kind: "list", id: l.id })}
+                    className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[0.8125rem] transition-colors ${
+                      active ? "bg-panel-2 font-medium text-text" : "text-muted hover:bg-panel hover:text-text"
+                    }`}
+                  >
+                    <span className="flex-1 truncate text-left">{l.title}</span>
+                    <span className="meta">{l.pubkeys.length}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
 
       <div className="mt-5 rounded-md border border-border p-3">
         <div className="eyebrow mb-1.5">Communities</div>

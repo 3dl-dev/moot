@@ -16,6 +16,7 @@ import { Notifications } from "./components/Notifications";
 import { SavedView } from "./components/SavedView";
 import { HistoryView } from "./components/HistoryView";
 import { SearchView } from "./components/SearchView";
+import { ListFeed, CreateList } from "./components/Lists";
 import { TopicsDirectory, TopicFeed } from "./components/Topics";
 import type { View } from "@/lib/nav";
 import { isTopLevelNote, looksLikeContent, publishNote } from "@/lib/nostr";
@@ -89,6 +90,12 @@ export default function Home() {
           {view.kind === "history" && <HistoryView />}
 
           {view.kind === "search" && <SearchView />}
+
+          {view.kind === "list" && (
+            <ListFeed key={view.id} id={view.id} onManage={() => setView({ kind: "create-list" })} />
+          )}
+
+          {view.kind === "create-list" && <CreateList onNavigate={setView} />}
 
           {view.kind === "settings" && <ContentSettings />}
         </main>
