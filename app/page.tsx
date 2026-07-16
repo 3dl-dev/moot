@@ -11,6 +11,7 @@ import { CommunityHeader } from "./components/CommunityHeader";
 import { CreateCommunity } from "./components/CreateCommunity";
 import { DvmDirectory } from "./components/DvmDirectory";
 import { DvmFeed } from "./components/DvmFeed";
+import { ContentSettings } from "./components/ContentSettings";
 import type { View } from "@/lib/nav";
 import {
   isTopLevelNote,
@@ -82,6 +83,8 @@ export default function Home() {
           {view.kind === "dvm" && (
             <DvmFeed key={view.provider.pubkey} provider={view.provider} onNavigate={setView} />
           )}
+
+          {view.kind === "settings" && <ContentSettings />}
         </main>
       </div>
     </div>

@@ -10,4 +10,5 @@ export type View =
   | { kind: "community"; community: Community }
   | { kind: "create-community" }
   | { kind: "discover" } // DVM algorithmic-feed directory
-  | { kind: "dvm"; provider: DvmProvider };
+  | { kind: "dvm"; provider: DvmProvider }
+  | { kind: "settings" }; // sensitive-content (18+) preference lives here
