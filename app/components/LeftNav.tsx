@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import type { View } from "@/lib/nav";
 import { useMutes, muteWord, unmuteWord, clearMutes } from "@/lib/mute";
-import { useShowNsfw, setShowNsfw } from "@/lib/nsfw";
+import { useShowNsfw } from "@/lib/nsfw";
 
 /* Clean inline icons (stroke, 16px) — no glyph-font guesswork. */
 const I = {
@@ -120,28 +120,21 @@ export function LeftNav({
         </button>
       </div>
 
-      <div className="mt-4 flex items-center justify-between rounded-md border border-border p-3">
+      <button
+        type="button"
+        onClick={() => onNavigate({ kind: "settings" })}
+        className={`mt-4 flex w-full items-center justify-between rounded-md border border-border p-3 text-left transition-colors ${
+          current.kind === "settings" ? "bg-panel-2" : "hover:bg-panel"
+        }`}
+      >
         <div className="min-w-0">
-          <div className="eyebrow">NSFW</div>
-          <p className="text-xs leading-relaxed text-muted">off the surface by default</p>
+          <div className="eyebrow">Sensitive content</div>
+          <p className="text-xs leading-relaxed text-muted">
+            {showNsfw ? "shown · 18+" : "hidden · 18+ to enable"}
+          </p>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={showNsfw}
-          aria-label="Show NSFW content"
-          onClick={() => setShowNsfw(!showNsfw)}
-          className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
-            showNsfw ? "bg-accent" : "bg-panel-2 ring-1 ring-inset ring-border"
-          }`}
-        >
-          <span
-            className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
-              showNsfw ? "translate-x-4" : "translate-x-0"
-            }`}
-          />
-        </button>
-      </div>
+        <span className="meta">›</span>
+      </button>
 
       <div className="mt-4 rounded-md border border-border p-3">
         <div className="eyebrow mb-1.5">Muted</div>
