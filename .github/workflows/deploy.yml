@@ -31,6 +31,11 @@ jobs:
       - uses: actions/upload-pages-artifact@v5
         with:
           path: out
+          # Without this, the action's tar runs `--exclude=.[^/]*` and drops every
+          # top-level dot-folder — including public/.well-known, which breaks NIP-05
+          # (name@moot.pub). Actions-based Pages serves the artifact as-is (no Jekyll),
+          # so hidden files are safe to include.
+          include-hidden-files: true
 
   deploy:
     needs: build
