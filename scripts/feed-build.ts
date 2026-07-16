@@ -104,6 +104,10 @@ export async function buildRankedFeeds(
     now?: number;
     limit?: number;
     prevSnapshot?: FeedSnapshot | null;
+    /** Restrict candidates to posts carrying one of these hashtags (topic feed). */
+    topicTags?: string[];
+    /** Reuse a prebuilt trust graph (e.g. the global one) instead of rebuilding. */
+    tiers?: Map<string, TrustTier>;
   } = {}
 ): Promise<BuiltFeeds> {
   const hours = opts.hours ?? 8;
@@ -115,11 +119,22 @@ export async function buildRankedFeeds(
   // Candidates: sweep the maturation window with until-cursors (fresh posts have
   // no engagement, so ranking them by "hot" is just ranking by "new").
   const MIN_AGE = 20 * 60;
-  const cursors = [0.5, 1.5, 3, 5, 8].filter((h) => h <= hours).map((h) => now - Math.floor(h * 3600));
   const pool = new Map<string, NDKEvent>();
-  for (const until of cursors) {
-    const b = await collectEvents(ndk, { kinds: [KIND_TEXT as NDKKind], until, limit: 300 }, 6000);
+  if (opts.topicTags?.length) {
+    // Topic feed: recent posts carrying the topic's hashtags, network-wide.
+    const b = await collectEvents(
+      ndk,
+      { kinds: [KIND_TEXT as NDKKind], "#t": opts.topicTags, since: now - hours * 3600, limit: 400 },
+      6000
+    );
     for (const e of b) if (e.id) pool.set(e.id, e);
+  } else {
+    // Global feed: sweep the maturation window with until-cursors.
+    const cursors = [0.5, 1.5, 3, 5, 8].filter((h) => h <= hours).map((h) => now - Math.floor(h * 3600));
+    for (const until of cursors) {
+      const b = await collectEvents(ndk, { kinds: [KIND_TEXT as NDKKind], until, limit: 300 }, 6000);
+      for (const e of b) if (e.id) pool.set(e.id, e);
+    }
   }
   let candidates = [...pool.values()].filter(
     (e) =>
@@ -156,29 +171,34 @@ export async function buildRankedFeeds(
   }
 
   // Engagement-seeded web of trust: hubs that drew the most distinct engagers,
-  // grown through the follow graph. No single curator.
-  const tiers = new Map<string, TrustTier>();
-  const distinct = new Map<string, Set<string>>();
-  for (const r of raw) {
-    if (!r.giver) continue;
-    const a = byId.get(r.target)!.pubkey;
-    (distinct.get(a) ?? distinct.set(a, new Set()).get(a)!).add(r.giver);
+  // grown through the follow graph. No single curator. Reused across topic feeds
+  // (opts.tiers) so we build it once, not per topic.
+  let tiers = opts.tiers;
+  let seeds = 0;
+  if (!tiers) {
+    tiers = new Map<string, TrustTier>();
+    const distinct = new Map<string, Set<string>>();
+    for (const r of raw) {
+      if (!r.giver) continue;
+      const a = byId.get(r.target)!.pubkey;
+      (distinct.get(a) ?? distinct.set(a, new Set()).get(a)!).add(r.giver);
+    }
+    const seed = [...distinct.entries()]
+      .filter(([, g]) => g.size >= 2)
+      .sort((a, b) => b[1].size - a[1].size)
+      .slice(0, 30)
+      .map(([pk]) => pk);
+    seeds = seed.length;
+    // Core = the seed hubs + accounts followed by ≥2 of them (multi-vouch), which
+    // keeps "core" tight and resistant to one idiosyncratic hub.
+    const vouches = await followVouches(ndk, seed);
+    const core = new Set<string>(seed);
+    for (const [pk, n] of vouches) if (n >= 2) core.add(pk);
+    for (const pk of core) tiers.set(pk, "core");
+    const extended = await followSet(ndk, [...core].slice(0, 80));
+    for (const pk of extended) if (!tiers.has(pk)) tiers.set(pk, "extended");
   }
-  const seed = [...distinct.entries()]
-    .filter(([, g]) => g.size >= 2)
-    .sort((a, b) => b[1].size - a[1].size)
-    .slice(0, 30)
-    .map(([pk]) => pk);
-  // Core = the seed hubs + accounts followed by ≥2 of them (multi-vouch). A
-  // single hub's follow isn't enough — that keeps "core" tight and resistant to
-  // one compromised/idiosyncratic hub, instead of the union of everyone's follows.
-  const vouches = await followVouches(ndk, seed);
-  const core = new Set<string>(seed);
-  for (const [pk, n] of vouches) if (n >= 2) core.add(pk);
-  for (const pk of core) tiers.set(pk, "core");
-  const extended = await followSet(ndk, [...core].slice(0, 80));
-  for (const pk of extended) if (!tiers.has(pk)) tiers.set(pk, "extended");
-  const weightOf = (pk: string) => trustWeight(pk, tiers);
+  const weightOf = (pk: string) => trustWeight(pk, tiers!);
 
   // Fold into trust-weighted signals.
   const signals = new Map<string, RankSignals>();
@@ -245,9 +265,9 @@ export async function buildRankedFeeds(
     snapshot: { at: now, signals: Object.fromEntries(candidates.map((e) => [e.id, signals.get(e.id)!])) },
     stats: {
       candidates: candidates.length,
-      core: core.size,
-      extended: tiers.size - core.size,
-      seeds: seed.length,
+      core: [...tiers.values()].filter((t) => t === "core").length,
+      extended: [...tiers.values()].filter((t) => t === "extended").length,
+      seeds,
       velocityReal,
     },
   };
