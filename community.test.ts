@@ -5,6 +5,8 @@ import {
   parseCommunity,
   isTopLevelCommunityPost,
   communityPostFilters,
+  approvedIdsFromTags,
+  imetaUrls,
   slugify,
 } from "./lib/nostr.ts";
 
@@ -49,6 +51,29 @@ test("communityPostFilters queries both conventions", () => {
   const [classic, nip22] = communityPostFilters(ADDR);
   assert.deepEqual(classic["#a"], [ADDR]);
   assert.deepEqual(nip22["#A"], [ADDR]);
+});
+
+test("approvedIdsFromTags reads a moderator approval's e tags", () => {
+  // kind:4550 approval referencing two posts.
+  assert.deepEqual(
+    approvedIdsFromTags([["a", ADDR], ["e", "post1"], ["p", "author"], ["e", "post2"]]),
+    ["post1", "post2"]
+  );
+  assert.deepEqual(approvedIdsFromTags([["a", ADDR]]), []); // approval with no e tag
+});
+
+test("imetaUrls pulls image URLs from NIP-92 imeta tags", () => {
+  const photo = ev({
+    id: "p",
+    kind: 1111,
+    tags: [
+      ["A", ADDR],
+      ["imeta", "url https://cdn.example/photo.jpg", "m image/jpeg", "dim 1080x1920"],
+      ["imeta", "url https://cdn.example/two.png"],
+    ],
+  });
+  assert.deepEqual(imetaUrls(photo), ["https://cdn.example/photo.jpg", "https://cdn.example/two.png"]);
+  assert.deepEqual(imetaUrls(ev({ id: "x", kind: 1, tags: [["t", "nostr"]] })), []);
 });
 
 test("slugify makes safe community ids", () => {

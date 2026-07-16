@@ -120,8 +120,10 @@ const VID_RE = /\.(mp4|webm|mov|m4v)(\?|$)/i;
 const YT_RE = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{11})/i;
 const VIMEO_RE = /vimeo\.com\/(\d+)/i;
 
-/** Render note content: linkify URLs, inline images, embed video. */
-export function ContentBody({ text }: { text: string }) {
+/** Render note content: linkify URLs, inline images, embed video. `imeta` holds
+ *  extra image URLs from NIP-92 tags (photo-first posts) to append if not
+ *  already present in the text. */
+export function ContentBody({ text, imeta = [] }: { text: string; imeta?: string[] }) {
   const nodes: ReactNode[] = [];
   const embeds: ReactNode[] = [];
   // Collapse runs of blank lines so bot posts don't leave canyons of whitespace.
@@ -195,6 +197,21 @@ export function ContentBody({ text }: { text: string }) {
         </a>
       );
     }
+  });
+
+  // Append NIP-92 imeta images that weren't already inlined from the text.
+  imeta.forEach((url, i) => {
+    if (text.includes(url)) return;
+    embeds.push(
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        key={`im${i}`}
+        src={url}
+        alt=""
+        className="max-h-96 w-full rounded-md border border-border object-cover"
+        loading="lazy"
+      />
+    );
   });
 
   return (

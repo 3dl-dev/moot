@@ -2,6 +2,7 @@
 
 import { NDKEvent } from "@nostr-dev-kit/ndk";
 import type { Engagement } from "@/lib/nostr";
+import { imetaUrls } from "@/lib/nostr";
 import { isNsfw } from "@/lib/nsfw";
 import { PostCardHeader, TopicChips, ContentBody, Foldable, NsfwGate } from "./parts";
 import { PostActionBar } from "./PostActions";
@@ -32,10 +33,10 @@ export function PostCard({
         <Foldable>
           {isNsfw(event) ? (
             <NsfwGate>
-              <ContentBody text={event.content} />
+              <ContentBody text={event.content} imeta={imetaUrls(event)} />
             </NsfwGate>
           ) : (
-            <ContentBody text={event.content} />
+            <ContentBody text={event.content} imeta={imetaUrls(event)} />
           )}
         </Foldable>
       </div>
