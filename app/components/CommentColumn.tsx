@@ -6,6 +6,7 @@ import { useNdk } from "@/app/providers";
 import {
   buildThread,
   fetchReplies,
+  imetaUrls,
   pruneMutedThread,
   publishReply,
   type ThreadNode,
@@ -159,7 +160,7 @@ function CommentNode({
       <div className="py-1.5">
         <CommentHeader event={node.event} />
         <div className="mt-1">
-          <ContentBody text={node.event.content} />
+          <ContentBody text={node.event.content} imeta={imetaUrls(node.event)} />
         </div>
         <div className="mt-1">
           <CommentActionBar

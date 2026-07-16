@@ -327,6 +327,70 @@ export function communityPostFilters(addr: string): NDKFilter[] {
   ];
 }
 
+export const KIND_COMMUNITY_APPROVAL = 4550; // NIP-72 moderator post-approval
+
+/**
+ * Image URLs carried in NIP-92 `imeta` tags. Photo-first clients (Olas et al.)
+ * put the image here, not in the note text — so without this, photography posts
+ * render as empty text in moot. Each `imeta` tag is space-delimited `key value`
+ * parts; we want the `url …` one.
+ */
+export function imetaUrls(ev: NDKEvent): string[] {
+  const urls: string[] = [];
+  for (const t of ev.tags) {
+    if (t[0] !== "imeta") continue;
+    for (const part of t.slice(1)) {
+      if (part.startsWith("url ")) {
+        const u = part.slice(4).trim();
+        if (u) urls.push(u);
+      }
+    }
+  }
+  return urls;
+}
+
+/** Approved post ids referenced by a moderator's kind:4550 `e` tags. Pure. */
+export function approvedIdsFromTags(tags: string[][]): string[] {
+  return tags.filter((t) => t[0] === "e" && t[1]).map((t) => t[1]);
+}
+
+export interface Approvals {
+  ids: Set<string>; // approved event ids
+  embedded: NDKEvent[]; // full events the moderator embedded in the approval content
+}
+
+/**
+ * The moderator-approved feed for a community (NIP-72). Each kind:4550 approval
+ * references an approved post by `e` tag and often embeds the full event in its
+ * content (so a client can render it even without fetching). The canonical
+ * community feed other NIP-72 clients show is exactly this approved set.
+ */
+export async function fetchCommunityApprovals(ndk: NDK, addr: string): Promise<Approvals> {
+  const approvals = await collectEvents(
+    ndk,
+    { kinds: [KIND_COMMUNITY_APPROVAL as NDKKind], "#a": [addr] },
+    5000
+  );
+  const ids = new Set<string>();
+  const embedded: NDKEvent[] = [];
+  for (const ap of approvals) {
+    for (const id of approvedIdsFromTags(ap.tags)) ids.add(id);
+    const c = ap.content?.trim();
+    if (c && c[0] === "{") {
+      try {
+        const raw = JSON.parse(c);
+        if (raw && raw.id) {
+          embedded.push(new NDKEvent(ndk, raw));
+          ids.add(raw.id);
+        }
+      } catch {
+        /* not an embedded event — the `e` tag still records the approval */
+      }
+    }
+  }
+  return { ids, embedded };
+}
+
 /** A top-level community submission (not a reply within the community). */
 export function isTopLevelCommunityPost(ev: NDKEvent, addr: string): boolean {
   if (ev.tags.some((t) => t[0] === "e")) return false; // reply to another post

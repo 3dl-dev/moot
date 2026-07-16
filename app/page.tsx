@@ -7,20 +7,13 @@ import { Feed } from "./components/Feed";
 import { HomeFeed } from "./components/HomeFeed";
 import { FollowingFeed } from "./components/FollowingFeed";
 import { Directory } from "./components/Directory";
-import { CommunityHeader } from "./components/CommunityHeader";
+import { CommunityFeed } from "./components/CommunityFeed";
 import { CreateCommunity } from "./components/CreateCommunity";
 import { DvmDirectory } from "./components/DvmDirectory";
 import { DvmFeed } from "./components/DvmFeed";
 import { ContentSettings } from "./components/ContentSettings";
 import type { View } from "@/lib/nav";
-import {
-  isTopLevelNote,
-  looksLikeContent,
-  publishNote,
-  communityPostFilters,
-  isTopLevelCommunityPost,
-  publishCommunityPost,
-} from "@/lib/nostr";
+import { isTopLevelNote, looksLikeContent, publishNote } from "@/lib/nostr";
 
 export default function Home() {
   const [view, setView] = useState<View>({ kind: "home" });
@@ -53,19 +46,10 @@ export default function Home() {
           )}
 
           {view.kind === "community" && (
-            <Feed
+            <CommunityFeed
               key={view.community.addr}
-              filters={communityPostFilters(view.community.addr)}
-              accept={(e) => isTopLevelCommunityPost(e, view.community.addr)}
-              publish={(ndk, text) => publishCommunityPost(ndk, view.community, text)}
-              toolbarLabel={view.community.name}
-              composerPlaceholder={`Post to ${view.community.name}…`}
-              header={
-                <CommunityHeader
-                  community={view.community}
-                  onBack={() => setView({ kind: "communities" })}
-                />
-              }
+              community={view.community}
+              onBack={() => setView({ kind: "communities" })}
             />
           )}
 
