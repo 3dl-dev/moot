@@ -14,6 +14,7 @@ import { DvmFeed } from "./components/DvmFeed";
 import { ContentSettings } from "./components/ContentSettings";
 import { Notifications } from "./components/Notifications";
 import { SavedView } from "./components/SavedView";
+import { HistoryView } from "./components/HistoryView";
 import { TopicsDirectory, TopicFeed } from "./components/Topics";
 import type { View } from "@/lib/nav";
 import { isTopLevelNote, looksLikeContent, publishNote } from "@/lib/nostr";
@@ -83,6 +84,8 @@ export default function Home() {
           {view.kind === "notifications" && <Notifications />}
 
           {view.kind === "saved" && <SavedView />}
+
+          {view.kind === "history" && <HistoryView />}
 
           {view.kind === "settings" && <ContentSettings />}
         </main>

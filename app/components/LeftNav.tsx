@@ -27,6 +27,13 @@ const I = {
   topics: <path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18" />,
   bell: <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" />,
   saved: <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />,
+  history: (
+    <>
+      <path d="M3 3v5h5" />
+      <path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
   explore: (
     <>
       <circle cx="12" cy="12" r="9" />
@@ -73,6 +80,12 @@ export function LeftNav({
             view: { kind: "notifications" } as View,
             activeKinds: ["notifications"] as View["kind"][],
             badge: unread,
+          },
+          {
+            label: "History",
+            icon: I.history,
+            view: { kind: "history" } as View,
+            activeKinds: ["history"] as View["kind"][],
           },
         ]
       : []),
