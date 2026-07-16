@@ -33,7 +33,7 @@ export function Feed({
   composerPlaceholder: string;
   header?: ReactNode;
 }) {
-  const { ndk, user, connecting } = useNdk();
+  const { ndk, user, connecting, canSign } = useNdk();
   const [posts, setPosts] = useState<NDKEvent[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [posting, setPosting] = useState(false);
@@ -184,7 +184,7 @@ export function Feed({
               )}
             </button>
           </div>
-          {user && (
+          {canSign && (
             <button
               type="button"
               onClick={() => setComposing((v) => !v)}
@@ -198,7 +198,7 @@ export function Feed({
 
       {header}
 
-      {composing && user && (
+      {composing && canSign && (
         <div className="border-b border-border p-3">
           <ReplyBox
             placeholder={composerPlaceholder}

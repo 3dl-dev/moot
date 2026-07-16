@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { getNdk } from "@/lib/ndk";
-import { authTransition, type NlAuthOptions } from "@/lib/auth";
+import { authTransition, canSign as identityCanSign, type NlAuthOptions } from "@/lib/auth";
 import { installNostrconnectFetchTimeout } from "@/lib/nostr-login-timeout";
 import { stopMuteSync, syncMutesOnLogin } from "@/lib/mutesync";
 
@@ -23,6 +23,12 @@ interface NdkContextValue {
   connecting: boolean;
   /** Signed in with a view-only npub — the UI should hide/disable signing. */
   readOnly: boolean;
+  /**
+   * True when the attached identity can actually sign events (logged in and not
+   * read-only). Every compose/publish control gates on this, so a view-only npub
+   * never sees signing UI it can't use. See docs/design.md#authentication.
+   */
+  canSign: boolean;
   /** Open the nostr-login modal. Optionally jump to a specific start screen. */
   login: (screen?: string) => void;
   /** Sign out of the current identity. */
@@ -137,9 +143,12 @@ export function NdkProvider({ children }: { children: ReactNode }) {
     document.dispatchEvent(new Event("nlLogout"));
   };
 
+  // A view-only npub attaches a `user` but can't sign; compose UI gates on this.
+  const canSign = identityCanSign({ loggedIn: user != null, readOnly });
+
   return (
     <NdkContext.Provider
-      value={{ ndk, user, connecting, readOnly, login, logout }}
+      value={{ ndk, user, connecting, readOnly, canSign, login, logout }}
     >
       {children}
     </NdkContext.Provider>

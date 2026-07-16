@@ -36,3 +36,12 @@ export function authTransition(o: NlAuthOptions): AuthTransition {
   if (o.type === "logout") return { loggedIn: false, readOnly: false };
   return { loggedIn: true, readOnly: o.method === "readOnly" };
 }
+
+/**
+ * Can this identity actually sign events? True only when an identity is attached
+ * and it is not a view-only npub. Every compose/publish control gates on this so
+ * a read-only login never sees signing UI it can't use (see app/providers.tsx).
+ */
+export function canSign(t: AuthTransition): boolean {
+  return t.loggedIn && !t.readOnly;
+}

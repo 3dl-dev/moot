@@ -44,7 +44,7 @@ export function TopicsDirectory({ onOpen }: { onOpen: (t: Topic) => void }) {
 
 /** A single topic's hot feed (read from the DVM), with a topic-tagged composer. */
 export function TopicFeed({ topic, onBack }: { topic: Topic; onBack: () => void }) {
-  const { ndk, user } = useNdk();
+  const { ndk, user, canSign } = useNdk();
   const [events, setEvents] = useState<NDKEvent[] | null>(null);
   const [scores, setScores] = useState<Map<string, Engagement>>(new Map());
   const [composing, setComposing] = useState(false);
@@ -94,7 +94,7 @@ export function TopicFeed({ topic, onBack }: { topic: Topic; onBack: () => void 
           <span className="eyebrow">{topic.label}</span>
           <span className="meta">· #{topic.tags[0]} across Nostr</span>
         </div>
-        {user && (
+        {canSign && (
           <button
             type="button"
             onClick={() => setComposing((v) => !v)}
@@ -105,7 +105,7 @@ export function TopicFeed({ topic, onBack }: { topic: Topic; onBack: () => void 
         )}
       </div>
 
-      {composing && user && (
+      {composing && canSign && (
         <div className="border-b border-border p-3">
           <ReplyBox
             placeholder={`Post to #${topic.tags[0]}…`}

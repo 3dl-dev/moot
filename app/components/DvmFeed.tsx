@@ -25,7 +25,7 @@ export function DvmFeed({
   provider: DvmProvider;
   onNavigate: (v: View) => void;
 }) {
-  const { ndk, user } = useNdk();
+  const { ndk, canSign } = useNdk();
   const [state, setState] = useState<State>({ phase: "loading" });
   const [refreshing, setRefreshing] = useState(false);
   useMutes(); // re-render on mute changes
@@ -44,7 +44,7 @@ export function DvmFeed({
 
   // Live path (needs signer): request a fresh run from the provider.
   const refresh = async () => {
-    if (!user) return;
+    if (!canSign) return;
     setRefreshing(true);
     try {
       const ids = await requestDvmFeed(ndk, provider.pubkey);
@@ -75,7 +75,7 @@ export function DvmFeed({
           >
             ‹ all feeds
           </button>
-          {user && (
+          {canSign && (
             <button
               type="button"
               onClick={refresh}
@@ -97,7 +97,7 @@ export function DvmFeed({
           <p className="text-sm text-muted">
             This provider hasn’t published a recent feed on your relays.
           </p>
-          {user ? (
+          {canSign ? (
             <button
               type="button"
               onClick={refresh}
