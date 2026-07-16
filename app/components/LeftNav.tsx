@@ -27,6 +27,12 @@ const I = {
   topics: <path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18" />,
   bell: <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" />,
   saved: <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />,
+  search: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.3-4.3" />
+    </>
+  ),
   history: (
     <>
       <path d="M3 3v5h5" />
@@ -70,6 +76,7 @@ export function LeftNav({
     badge?: number;
   }[] = [
     { label: "Home", icon: I.home, view: { kind: "home" }, activeKinds: ["home"] },
+    { label: "Search", icon: I.search, view: { kind: "search" }, activeKinds: ["search"] },
     { label: "Topics", icon: I.topics, view: { kind: "topics" }, activeKinds: ["topics", "topic"] },
     { label: "Following", icon: I.people, view: { kind: "following" }, activeKinds: ["following"] },
     ...(user

@@ -15,6 +15,7 @@ import { ContentSettings } from "./components/ContentSettings";
 import { Notifications } from "./components/Notifications";
 import { SavedView } from "./components/SavedView";
 import { HistoryView } from "./components/HistoryView";
+import { SearchView } from "./components/SearchView";
 import { TopicsDirectory, TopicFeed } from "./components/Topics";
 import type { View } from "@/lib/nav";
 import { isTopLevelNote, looksLikeContent, publishNote } from "@/lib/nostr";
@@ -86,6 +87,8 @@ export default function Home() {
           {view.kind === "saved" && <SavedView />}
 
           {view.kind === "history" && <HistoryView />}
+
+          {view.kind === "search" && <SearchView />}
 
           {view.kind === "settings" && <ContentSettings />}
         </main>
