@@ -17,4 +17,6 @@ export type View =
   | { kind: "saved" } // your NIP-51 kind:10003 bookmarked posts
   | { kind: "history" } // your own posts, comments & reactions
   | { kind: "search" } // NIP-50 search over posts & profiles
+  | { kind: "list"; id: string } // a named people list (NIP-51 kind:30000), feed scoped to members
+  | { kind: "create-list" } // the new-list editor
   | { kind: "settings" }; // sensitive-content (18+) preference lives here

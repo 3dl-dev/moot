@@ -15,6 +15,7 @@ import { authTransition, canSign as identityCanSign, type NlAuthOptions } from "
 import { installNostrconnectFetchTimeout } from "@/lib/nostr-login-timeout";
 import { stopMuteSync, syncMutesOnLogin } from "@/lib/mutesync";
 import { stopBookmarkSync, syncBookmarksOnLogin } from "@/lib/bookmarksync";
+import { stopListSync, syncListsOnLogin } from "@/lib/listsync";
 
 interface NdkContextValue {
   ndk: NDK;
@@ -92,6 +93,7 @@ export function NdkProvider({ children }: { children: ReactNode }) {
         if (!t.loggedIn) {
           stopMuteSync();
           stopBookmarkSync();
+          stopListSync();
           ndk.signer = undefined;
           setUser(null);
           setReadOnly(false);
@@ -111,6 +113,7 @@ export function NdkProvider({ children }: { children: ReactNode }) {
           // in sync. Read-only npubs hydrate but never publish. Non-fatal on failure.
           void syncMutesOnLogin(ndk, u.pubkey, !t.readOnly).catch(() => {});
           void syncBookmarksOnLogin(ndk, u.pubkey, !t.readOnly).catch(() => {});
+          void syncListsOnLogin(ndk, u.pubkey, !t.readOnly).catch(() => {});
         } catch {
           // The modal surfaces its own errors; leave state logged-out on failure.
         }
