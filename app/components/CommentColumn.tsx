@@ -99,7 +99,7 @@ export function CommentColumn({
 
       {replyingRoot && (
         <div className="mb-2">
-          <ReplyBox placeholder="Add a reply…" busy={busy} autoFocus onSubmit={replyToRoot} />
+          <ReplyBox placeholder="Add a reply…" busy={busy} autoFocus onSubmit={replyToRoot} draftKey={`reply:${root.id}`} />
         </div>
       )}
 
@@ -173,7 +173,7 @@ function CommentNode({
         </div>
         {replying && (
           <div className="mt-1.5">
-            <ReplyBox placeholder="Reply…" busy={busy} autoFocus onSubmit={submit} />
+            <ReplyBox placeholder="Reply…" busy={busy} autoFocus onSubmit={submit} draftKey={`reply:${node.event.id}`} />
           </div>
         )}
       </div>

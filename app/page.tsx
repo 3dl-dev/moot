@@ -38,6 +38,7 @@ export default function Home() {
               publish={(ndk, text) => publishNote(ndk, text)}
               toolbarLabel="all · unfiltered firehose"
               composerPlaceholder="Post to Nostr…"
+              draftKey="post:all"
             />
           )}
 

@@ -1,9 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNdk } from "@/app/providers";
 import { publishCommunity, slugify, type Community } from "@/lib/nostr";
+import { clearDraft, getDraft, saveDraft } from "@/lib/drafts";
 import { AttachButton } from "./AttachButton";
+
+// Draft keys for the new-community form; cleared once the community is created.
+const D_NAME = "new-community:name";
+const D_DESC = "new-community:description";
+const D_IMAGE = "new-community:image";
 
 export function CreateCommunity({
   onCreated,
@@ -13,11 +19,17 @@ export function CreateCommunity({
   onCancel: () => void;
 }) {
   const { ndk, canSign } = useNdk();
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [image, setImage] = useState("");
+  // Restore any in-progress draft so an accidental navigation doesn't lose it.
+  const [name, setName] = useState(() => getDraft(D_NAME));
+  const [description, setDescription] = useState(() => getDraft(D_DESC));
+  const [image, setImage] = useState(() => getDraft(D_IMAGE));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Autosave each field (blank values remove their key — see lib/drafts.ts).
+  useEffect(() => saveDraft(D_NAME, name), [name]);
+  useEffect(() => saveDraft(D_DESC, description), [description]);
+  useEffect(() => saveDraft(D_IMAGE, image), [image]);
 
   const submit = async () => {
     const n = name.trim();
@@ -30,6 +42,10 @@ export function CreateCommunity({
         description: description.trim(),
         image: image.trim() || undefined,
       });
+      // Created — drop the draft so a fresh form opens next time.
+      clearDraft(D_NAME);
+      clearDraft(D_DESC);
+      clearDraft(D_IMAGE);
       onCreated(c);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create community.");

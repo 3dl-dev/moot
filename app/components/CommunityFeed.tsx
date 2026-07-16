@@ -130,6 +130,7 @@ export function CommunityFeed({ community, onBack }: { community: Community; onB
             busy={posting}
             autoFocus
             onSubmit={submitPost}
+            draftKey={`community:${community.addr}`}
           />
         </div>
       )}
