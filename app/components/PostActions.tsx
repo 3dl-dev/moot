@@ -211,10 +211,13 @@ export function CommentActionBar({
   return (
     <div className="flex items-center gap-1 text-muted">
       <VoteControl event={event} baseline={netScore ?? 0} />
-      <Btn onClick={onReply} label="Reply">
-        <Bubble />
-        <span>Reply</span>
-      </Btn>
+      {/* No handler (read-only / logged out) → no Reply affordance at all. */}
+      {onReply && (
+        <Btn onClick={onReply} label="Reply">
+          <Bubble />
+          <span>Reply</span>
+        </Btn>
+      )}
       {canToggle && (
         <Btn onClick={onToggle} label={expanded ? "Collapse" : "Expand"}>
           <Chevron open={!!expanded} />

@@ -26,7 +26,7 @@ import { CommunityHeader } from "./CommunityHeader";
  * "All" toggle reveals the unmoderated set (superset reader — nothing's hidden).
  */
 export function CommunityFeed({ community, onBack }: { community: Community; onBack: () => void }) {
-  const { ndk, user } = useNdk();
+  const { ndk, canSign } = useNdk();
   const [posts, setPosts] = useState<NDKEvent[] | null>(null);
   const [hasApprovals, setHasApprovals] = useState(false);
   const [showAll, setShowAll] = useState(false);
@@ -108,7 +108,7 @@ export function CommunityFeed({ community, onBack }: { community: Community; onB
               </button>
             </div>
           )}
-          {user && (
+          {canSign && (
             <button
               type="button"
               onClick={() => setComposing((v) => !v)}
@@ -122,7 +122,7 @@ export function CommunityFeed({ community, onBack }: { community: Community; onB
 
       <CommunityHeader community={community} onBack={onBack} />
 
-      {composing && user && (
+      {composing && canSign && (
         <div className="border-b border-border p-3">
           <ReplyBox
             placeholder={`Post to ${community.name}…`}

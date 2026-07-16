@@ -26,7 +26,7 @@ export function CommentColumn({
   active: boolean;
   onCount?: (n: number) => void;
 }) {
-  const { ndk, user } = useNdk();
+  const { ndk, canSign } = useNdk();
   const mutes = useMutes(); // re-render + re-prune when the mute list changes
   const [tree, setTree] = useState<ThreadNode[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -86,7 +86,7 @@ export function CommentColumn({
           <span className="eyebrow">the record</span>
           <span className="meta">· sorted by likes</span>
         </div>
-        {user && (
+        {canSign && (
           <button
             type="button"
             onClick={() => setReplyingRoot((v) => !v)}
@@ -138,7 +138,7 @@ function CommentNode({
   depth: number;
   onReplied: () => void;
 }) {
-  const { ndk, user } = useNdk();
+  const { ndk, canSign } = useNdk();
   const [expanded, setExpanded] = useState(true);
   const [replying, setReplying] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -165,7 +165,7 @@ function CommentNode({
         <div className="mt-1">
           <CommentActionBar
             event={node.event}
-            onReply={() => (user ? setReplying((v) => !v) : undefined)}
+            onReply={canSign ? () => setReplying((v) => !v) : undefined}
             onToggle={() => setExpanded((v) => !v)}
             expanded={expanded}
             canToggle={hasChildren}

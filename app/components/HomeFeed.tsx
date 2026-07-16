@@ -44,7 +44,7 @@ async function loadNew(ndk: ReturnType<typeof useNdk>["ndk"]): Promise<NDKEvent[
  * a reddit-like front page instead of the raw firehose.
  */
 export function HomeFeed({ onNavigate }: { onNavigate: (v: View) => void }) {
-  const { ndk, user } = useNdk();
+  const { ndk, canSign } = useNdk();
   const [sort, setSort] = useState<Sort>("hot");
   const [events, setEvents] = useState<NDKEvent[] | null>(null); // null = loading
   const [scores, setScores] = useState<Map<string, Engagement>>(new Map());
@@ -92,7 +92,7 @@ export function HomeFeed({ onNavigate }: { onNavigate: (v: View) => void }) {
             <span className="eyebrow">the floor</span>
             <span className="meta">· {active.blurb}</span>
           </div>
-          {user && (
+          {canSign && (
             <button
               type="button"
               onClick={() => setComposing((v) => !v)}
@@ -118,7 +118,7 @@ export function HomeFeed({ onNavigate }: { onNavigate: (v: View) => void }) {
         </div>
       </div>
 
-      {composing && user && (
+      {composing && canSign && (
         <div className="border-b border-border p-3">
           <ReplyBox
             placeholder="Post to Nostr…"

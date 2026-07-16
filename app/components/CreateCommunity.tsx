@@ -12,7 +12,7 @@ export function CreateCommunity({
   onCreated: (c: Community) => void;
   onCancel: () => void;
 }) {
-  const { ndk, user } = useNdk();
+  const { ndk, canSign } = useNdk();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [image, setImage] = useState("");
@@ -49,13 +49,13 @@ export function CreateCommunity({
         Nostr client — not just moot.
       </p>
 
-      {!user && (
+      {!canSign && (
         <p className="rounded-md border border-border bg-panel p-3 text-sm text-muted">
-          Log in to create a community.
+          Log in with a signing key to create a community.
         </p>
       )}
 
-      {user && (
+      {canSign && (
         <div className="space-y-3">
           <label className="block">
             <span className="meta">name</span>

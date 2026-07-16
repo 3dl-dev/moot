@@ -11,7 +11,7 @@ export function Directory({
   onOpen: (c: Community) => void;
   onCreate: () => void;
 }) {
-  const { ndk, user } = useNdk();
+  const { ndk, canSign } = useNdk();
   const [items, setItems] = useState<Community[] | null>(null);
 
   useEffect(() => {
@@ -31,7 +31,7 @@ export function Directory({
             User-run, moderated on NIP-72 — visible to every Nostr client.
           </p>
         </div>
-        {user && (
+        {canSign && (
           <button
             type="button"
             onClick={onCreate}
