@@ -4,6 +4,7 @@ import { NDKEvent } from "@nostr-dev-kit/ndk";
 import { useRef, useState, type ReactNode } from "react";
 import { useNdk } from "@/app/providers";
 import { shareLink } from "@/lib/nostr";
+import { toggleBookmark, useBookmarks } from "@/lib/bookmarks";
 
 /* Inline icons */
 const Arrow = ({ dir }: { dir: "up" | "down" }) => (
@@ -36,6 +37,27 @@ const Share = () => (
     <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M16 6l-4-4-4 4M12 2v14" />
   </svg>
 );
+const Bookmark = ({ filled }: { filled?: boolean }) => (
+  <svg viewBox="0 0 24 24" width="15" height="15" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+  </svg>
+);
+
+/** Save/unsave toggle. Bookmarks are local-first and sync to NIP-51 kind:10003
+ *  once logged in (see lib/bookmarks.ts), so this works logged out too. */
+function BookmarkBtn({ event }: { event: NDKEvent }) {
+  const ids = useBookmarks();
+  const saved = event.id ? ids.includes(event.id) : false;
+  return (
+    <Btn
+      onClick={() => event.id && toggleBookmark(event.id)}
+      active={saved}
+      label={saved ? "Saved — click to remove" : "Save"}
+    >
+      <Bookmark filled={saved} />
+    </Btn>
+  );
+}
 
 /**
  * Up/down voting via NIP-25 reactions ("+" / "-"). Switching sides or toggling
@@ -174,6 +196,7 @@ export function PostActionBar({
         )}
       </Btn>
       <div className="flex-1" />
+      <BookmarkBtn event={event} />
       <Btn onClick={share} active={shared} label="Share">
         <Share />
         {shared && <span className="text-accent">copied</span>}
@@ -182,7 +205,7 @@ export function PostActionBar({
   );
 }
 
-/** Comment footer: vote ▲▼ · Reply · Expand · Share. */
+/** Comment footer: vote ▲▼ · Reply · Expand · Save · Share. */
 export function CommentActionBar({
   event,
   netScore,
@@ -224,6 +247,7 @@ export function CommentActionBar({
           <span>{expanded ? "Collapse" : "Expand"}</span>
         </Btn>
       )}
+      <BookmarkBtn event={event} />
       <Btn onClick={share} active={shared} label="Share">
         <Share />
         <span>{shared ? "copied" : "Share"}</span>
