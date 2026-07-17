@@ -4,11 +4,15 @@ import type { NDKEvent } from "@nostr-dev-kit/ndk";
 import {
   matchesMute,
   parseMuteTags,
+  parsePrivateMuteContent,
   buildMuteTags,
   mergeMutes,
   muteSuperset,
   isManagedMuteTag,
   countNewMutes,
+  isMuted,
+  setPrivateMutes,
+  clearPrivateMutes,
   type Mutes,
 } from "./lib/mute.ts";
 
@@ -127,4 +131,41 @@ test("countNewMutes: only entries not already present count as imported", () => 
   assert.equal(countNewMutes(local, remote), 3);
   // Importing a list you already fully cover adds nothing.
   assert.equal(countNewMutes(local, { pubkeys: ["alice"], words: ["spam"], communities: [] }), 0);
+});
+
+/* ------------------ NIP-04 private mutes (superset reader) ------------------ */
+
+test("parsePrivateMuteContent reads a JSON tag array like the public tags", () => {
+  const content = JSON.stringify([
+    ["p", "eve"],
+    ["word", "SCAM"], // lowercased on read
+    ["a", ADDR],
+    ["e", "thread"], // ignored, like public parsing
+  ]);
+  assert.deepEqual(parsePrivateMuteContent(content), {
+    pubkeys: ["eve"],
+    words: ["scam"],
+    communities: [ADDR],
+  });
+});
+
+test("parsePrivateMuteContent is non-fatal on garbage or non-array JSON", () => {
+  const EMPTY_REMOTE = { pubkeys: [], words: [], communities: [] };
+  assert.deepEqual(parsePrivateMuteContent(""), EMPTY_REMOTE); // decrypt gave nothing
+  assert.deepEqual(parsePrivateMuteContent("not json"), EMPTY_REMOTE);
+  assert.deepEqual(parsePrivateMuteContent('{"p":"eve"}'), EMPTY_REMOTE); // object, not array
+  assert.deepEqual(parsePrivateMuteContent('["p","eve"]'), EMPTY_REMOTE); // flat, non-tag elements
+});
+
+test("isMuted applies decrypted private mutes, then clears them on logout", () => {
+  try {
+    assert.equal(isMuted(ev({ pubkey: "eve" })), false); // clean baseline
+    setPrivateMutes({ pubkeys: ["eve"], words: [], communities: [] });
+    assert.equal(isMuted(ev({ pubkey: "eve" })), true); // private mute hides eve
+    assert.equal(isMuted(ev({ pubkey: "alice" })), false); // others unaffected
+    clearPrivateMutes();
+    assert.equal(isMuted(ev({ pubkey: "eve" })), false); // dropped on logout
+  } finally {
+    clearPrivateMutes();
+  }
 });

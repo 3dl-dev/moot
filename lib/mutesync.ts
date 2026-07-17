@@ -3,12 +3,15 @@ import { collectEvents } from "./nostr";
 import {
   KIND_MUTE_LIST,
   buildMuteTags,
+  clearPrivateMutes,
   countNewMutes,
   getMutes,
   mergeRemote,
   muteSuperset,
   parseMuteTags,
+  parsePrivateMuteContent,
   setMutePublisher,
+  setPrivateMutes,
   type Mutes,
 } from "./mute";
 
@@ -62,6 +65,22 @@ export async function syncMutesOnLogin(
   // doesn't immediately trigger a republish.
   mergeRemote(remote);
 
+  // Superset reader: also decrypt and apply the user's NIP-04-encrypted PRIVATE
+  // mutes (Damus/Amethyst store mutes in `.content`). Filter-only — never
+  // republished as public tags, and the encrypted blob is carried through
+  // untouched (preserved.content). Non-fatal: a read-only npub can't decrypt, and
+  // a bad blob shouldn't break login — either way the private mutes just stay
+  // unapplied, never destroyed.
+  if (existing?.content && ndk.signer) {
+    try {
+      const self = ndk.getUser({ pubkey });
+      const decrypted = await ndk.signer.decrypt(self, existing.content, "nip04");
+      setPrivateMutes(parsePrivateMuteContent(decrypted));
+    } catch {
+      /* decrypt unavailable/failed — private mutes stay unapplied, never destroyed */
+    }
+  }
+
   if (!canWrite) return; // read-only npub: hydrate for filtering, never publish
 
   setMutePublisher((mutes) => void publishMuteList(ndk, mutes, preserved).catch(() => {}));
@@ -72,9 +91,11 @@ export async function syncMutesOnLogin(
   }
 }
 
-/** Stop syncing (on logout). Local mutes remain as the logged-out filter. */
+/** Stop syncing (on logout). Local mutes remain as the logged-out filter, but the
+ *  decrypted private mutes are dropped — they belong to the account, not the device. */
 export function stopMuteSync(): void {
   setMutePublisher(null);
+  clearPrivateMutes();
 }
 
 /** Outcome of importing someone else's block list. */

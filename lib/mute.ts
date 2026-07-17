@@ -39,6 +39,13 @@ export function setMutePublisher(fn: Publisher | null) {
   publisher = fn;
 }
 
+// The user's NIP-04-encrypted PRIVATE mutes (kind:10000 `.content`), decrypted on
+// login (lib/mutesync.ts). Applied to FILTERING only — deliberately kept out of
+// the editable/published `state` so they're never promoted to public tags (which
+// would leak them) nor shown as removable chips. Not persisted: re-derived each
+// login from the encrypted list. Empty when logged out.
+let privateMutes: Mutes = EMPTY;
+
 function commit(next: Mutes) {
   state = next;
   if (typeof window !== "undefined") localStorage.setItem(KEY, JSON.stringify(state));
@@ -98,9 +105,27 @@ export function matchesMute(ev: NDKEvent, mutes: Mutes): boolean {
   return false;
 }
 
-/** True if an event should be hidden by the current mute list. */
+/** True if an event should be hidden by the current mute list — the local/public
+ *  mutes OR the user's decrypted private mutes. */
 export function isMuted(ev: NDKEvent): boolean {
-  return matchesMute(ev, state);
+  return matchesMute(ev, state) || matchesMute(ev, privateMutes);
+}
+
+/**
+ * Replace the decrypted private-mute set (filter-only; see `privateMutes`). Bumps
+ * the public snapshot's reference — same content — so `useMutes()` subscribers
+ * (the feeds) re-render and re-run `isMuted` with the freshly-decrypted set,
+ * without touching the published list or triggering a republish.
+ */
+export function setPrivateMutes(m: RemoteMutes) {
+  privateMutes = { ...EMPTY, ...m };
+  state = { ...state };
+  listeners.forEach((l) => l());
+}
+
+/** Drop the private-mute set (on logout). */
+export function clearPrivateMutes() {
+  setPrivateMutes(EMPTY);
 }
 
 /* ===================== NIP-51 kind:10000 mute-list sync ===================== */
@@ -126,6 +151,23 @@ export function parseMuteTags(tags: string[][]): RemoteMutes {
     else if (t[0] === "a" && t[1]) communities.push(t[1]);
   }
   return { pubkeys, words, communities };
+}
+
+/**
+ * Parse the DECRYPTED NIP-04 private content of a kind:10000 list into moot's
+ * model. Damus/Amethyst store mutes privately as a JSON array of tags — the same
+ * `[["p",..],["word",..],["a",..]]` shape as public tags — inside `.content`.
+ * Non-fatal: returns empty on malformed JSON or an unexpected shape so a bad blob
+ * never breaks login (superset-reader: tolerate what other clients write).
+ */
+export function parsePrivateMuteContent(decrypted: string): RemoteMutes {
+  try {
+    const parsed = JSON.parse(decrypted);
+    if (!Array.isArray(parsed)) return { pubkeys: [], words: [], communities: [] };
+    return parseMuteTags(parsed.filter((t): t is string[] => Array.isArray(t)));
+  } catch {
+    return { pubkeys: [], words: [], communities: [] };
+  }
 }
 
 /** Tags moot owns in the list — rebuilt from state on republish; all others preserved. */
