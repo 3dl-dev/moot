@@ -458,6 +458,17 @@ export function hashtagCount(ev: NDKEvent): number {
   return ev.tags.reduce((n, t) => (t[0] === "t" ? n + 1 : n), 0);
 }
 
+/**
+ * Up to `max` distinct hashtags on an event, in first-seen order. Deduped: a
+ * post can carry the same `t` tag twice, which otherwise collides React keys in
+ * the topic chips ("two children with the same key"). Pure.
+ */
+export function topicTags(ev: NDKEvent, max = 3): string[] {
+  const seen = new Set<string>();
+  for (const t of ev.tags) if (t[0] === "t" && t[1]) seen.add(t[1]);
+  return [...seen].slice(0, max);
+}
+
 /** True if an event carries more than `max` hashtags — i.e. looks stuffed. Pure. */
 export function isHashtagStuffed(ev: NDKEvent, max = MAX_TOPIC_HASHTAGS): boolean {
   return hashtagCount(ev) > max;

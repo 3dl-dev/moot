@@ -22,7 +22,12 @@ export interface UserList {
 
 const KEY = "moot.lists.v1";
 
-let state: UserList[] = [];
+// Stable empty reference for the server/initial snapshot — returning a fresh []
+// each call makes getServerSnapshot non-referentially-stable, which React warns
+// about ("should be cached to avoid an infinite loop"). Mirrors EMPTY in the
+// other stores (lib/mute.ts, lib/membership.ts).
+const EMPTY: UserList[] = [];
+let state: UserList[] = EMPTY;
 const listeners = new Set<() => void>();
 
 if (typeof window !== "undefined") {
@@ -155,6 +160,6 @@ export function useLists(): UserList[] {
   return useSyncExternalStore(
     subscribe,
     () => state,
-    () => []
+    () => EMPTY
   );
 }

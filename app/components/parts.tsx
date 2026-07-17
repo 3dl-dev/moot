@@ -3,7 +3,7 @@
 import { NDKEvent } from "@nostr-dev-kit/ndk";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useProfile, displayName, handle } from "@/lib/hooks";
-import { timeAgo } from "@/lib/nostr";
+import { timeAgo, topicTags } from "@/lib/nostr";
 import { decodeNostrToken } from "@/lib/mentions";
 import { mutePubkey } from "@/lib/mute";
 import { getDraft, saveDraft } from "@/lib/drafts";
@@ -95,10 +95,7 @@ function StubButton({ children }: { children: ReactNode }) {
 /* ----------------------------------------------------------- topic chips */
 
 export function TopicChips({ event }: { event: NDKEvent }) {
-  const topics = event.tags
-    .filter((t) => t[0] === "t" && t[1])
-    .slice(0, 3)
-    .map((t) => t[1]);
+  const topics = topicTags(event);
   if (topics.length === 0) return null;
   return (
     <div className="flex flex-wrap gap-1.5">
