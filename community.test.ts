@@ -8,6 +8,11 @@ import {
   approvedIdsFromTags,
   imetaUrls,
   slugify,
+  isModerator,
+  isOwner,
+  buildReportTags,
+  parseReport,
+  REPORT_TYPES,
 } from "./lib/nostr.ts";
 
 const ev = (o: Partial<NDKEvent> & { id: string }) => o as unknown as NDKEvent;
@@ -41,8 +46,10 @@ test("isTopLevelCommunityPost matches NIP-72 and NIP-22, rejects replies", () =>
   const nip22 = ev({ id: "b", kind: 1111, tags: [["A", ADDR], ["a", ADDR]] });
   const reply = ev({ id: "c", kind: 1, tags: [["a", ADDR], ["e", "a"]] });
   const other = ev({ id: "d", kind: 1, tags: [["a", "34550:owner:other"]] });
+  const poll = ev({ id: "poll", kind: 1068, tags: [["a", ADDR], ["option", "x", "X"]] });
   assert.equal(isTopLevelCommunityPost(classic, ADDR), true);
   assert.equal(isTopLevelCommunityPost(nip22, ADDR), true);
+  assert.equal(isTopLevelCommunityPost(poll, ADDR), true); // NIP-88 poll posted to the community
   assert.equal(isTopLevelCommunityPost(reply, ADDR), false); // has an e tag → a reply
   assert.equal(isTopLevelCommunityPost(other, ADDR), false); // different community
 });
@@ -79,4 +86,33 @@ test("imetaUrls pulls image URLs from NIP-92 imeta tags", () => {
 test("slugify makes safe community ids", () => {
   assert.equal(slugify("Bitcoin Builders!"), "bitcoin-builders");
   assert.equal(slugify("  Héllo World  "), "h-llo-world");
+});
+
+test("isModerator / isOwner: owner is always a moderator", () => {
+  const c = parseCommunity(def);
+  assert.equal(isOwner(c, "owner"), true);
+  assert.equal(isOwner(c, "mod2"), false); // a mod but not the owner
+  assert.equal(isModerator(c, "owner"), true);
+  assert.equal(isModerator(c, "mod2"), true);
+  assert.equal(isModerator(c, "someoneelse"), false);
+  assert.equal(isModerator(c, null), false); // logged out
+});
+
+test("buildReportTags puts the report type as the 3rd tag entry (NIP-56)", () => {
+  const tags = buildReportTags({ type: "spam", targetEvent: "post1", targetPubkey: "author1", community: ADDR });
+  assert.deepEqual(tags.find((t) => t[0] === "p"), ["p", "author1", "spam"]);
+  assert.deepEqual(tags.find((t) => t[0] === "e"), ["e", "post1", "spam"]);
+  assert.deepEqual(tags.find((t) => t[0] === "a"), ["a", ADDR]); // moot's community-scoping extension
+});
+
+test("parseReport reads type, target, and community; rejects targetless reports", () => {
+  const r = parseReport(
+    ev({ id: "r1", kind: 1984, pubkey: "reporter", content: "obvious spam", tags: buildReportTags({ type: "spam", targetEvent: "post1", community: ADDR }) })
+  )!;
+  assert.equal(r.type, "spam");
+  assert.equal(r.targetEvent, "post1");
+  assert.equal(r.community, ADDR);
+  assert.equal(r.reason, "obvious spam");
+  assert.equal(parseReport(ev({ id: "r2", kind: 1984, tags: [["a", ADDR]] })), null); // no e/p → not a report
+  assert.ok(REPORT_TYPES.includes("spam"));
 });

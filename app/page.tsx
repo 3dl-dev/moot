@@ -13,13 +13,16 @@ import { DvmDirectory } from "./components/DvmDirectory";
 import { DvmFeed } from "./components/DvmFeed";
 import { ContentSettings } from "./components/ContentSettings";
 import { Notifications } from "./components/Notifications";
+import { ModQueue } from "./components/ModQueue";
 import { SavedView } from "./components/SavedView";
 import { HistoryView } from "./components/HistoryView";
 import { SearchView } from "./components/SearchView";
 import { ListFeed, CreateList } from "./components/Lists";
 import { TopicsDirectory, TopicFeed } from "./components/Topics";
 import type { View } from "@/lib/nav";
+import type { NDKKind } from "@nostr-dev-kit/ndk";
 import { isTopLevelNote, looksLikeContent, publishNote } from "@/lib/nostr";
+import { isPoll, KIND_POLL } from "@/lib/polls";
 
 export default function Home() {
   const [view, setView] = useState<View>({ kind: "home" });
@@ -36,8 +39,8 @@ export default function Home() {
 
           {view.kind === "feed" && (
             <Feed
-              filters={{ kinds: [1], limit: 80 }}
-              accept={(e) => isTopLevelNote(e) && looksLikeContent(e.content)}
+              filters={{ kinds: [1 as NDKKind, KIND_POLL as NDKKind], limit: 80 }}
+              accept={(e) => isPoll(e) || (isTopLevelNote(e) && looksLikeContent(e.content))}
               publish={(ndk, text) => publishNote(ndk, text)}
               toolbarLabel="all · unfiltered firehose"
               composerPlaceholder="Post to Nostr…"
@@ -84,6 +87,8 @@ export default function Home() {
           )}
 
           {view.kind === "notifications" && <Notifications />}
+
+          {view.kind === "mod-queue" && <ModQueue />}
 
           {view.kind === "saved" && <SavedView />}
 

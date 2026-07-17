@@ -53,6 +53,7 @@ const I = {
       <path d="M12 11v5M12 8h.01" />
     </>
   ),
+  shield: <path d="M12 3l7 3v6c0 4-3 6.5-7 9-4-2.5-7-5-7-9V6z" />,
 };
 
 export function LeftNav({
@@ -95,6 +96,12 @@ export function LeftNav({
             icon: I.history,
             view: { kind: "history" } as View,
             activeKinds: ["history"] as View["kind"][],
+          },
+          {
+            label: "Moderation",
+            icon: I.shield,
+            view: { kind: "mod-queue" } as View,
+            activeKinds: ["mod-queue"] as View["kind"][],
           },
         ]
       : []),

@@ -319,11 +319,14 @@ export async function fetchCommunities(ndk: NDK, limit = 200): Promise<Community
   return [...best.values()].map((b) => b.c).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** Filters for a community's top-level posts (reads NIP-72 kind:1 + NIP-22 kind:1111). */
+export const KIND_POLL = 1068; // NIP-88 poll (defined in lib/polls.ts; literal here avoids a cycle)
+
+/** Filters for a community's top-level posts (reads NIP-72 kind:1 + NIP-22 kind:1111 + NIP-88 polls). */
 export function communityPostFilters(addr: string): NDKFilter[] {
   return [
     { kinds: [KIND_TEXT], "#a": [addr] }, // classic NIP-72 submissions
     { kinds: [KIND_COMMENT], "#A": [addr] }, // NIP-22 community posts
+    { kinds: [KIND_POLL as NDKKind], "#a": [addr] }, // NIP-88 polls posted to the community
   ];
 }
 
@@ -394,7 +397,8 @@ export async function fetchCommunityApprovals(ndk: NDK, addr: string): Promise<A
 /** A top-level community submission (not a reply within the community). */
 export function isTopLevelCommunityPost(ev: NDKEvent, addr: string): boolean {
   if (ev.tags.some((t) => t[0] === "e")) return false; // reply to another post
-  if (ev.kind === KIND_TEXT) return ev.tags.some((t) => t[0] === "a" && t[1] === addr);
+  if (ev.kind === KIND_TEXT || ev.kind === KIND_POLL)
+    return ev.tags.some((t) => t[0] === "a" && t[1] === addr);
   if (ev.kind === KIND_COMMENT) return ev.tags.some((t) => t[0] === "A" && t[1] === addr);
   return false;
 }
@@ -430,6 +434,154 @@ export function slugify(s: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 32);
+}
+
+/* ===================== NIP-72 moderation (approve / remove / mod list) ===================== */
+
+/** True if `pubkey` moderates this community (its author is always a moderator). */
+export function isModerator(c: Community, pubkey?: string | null): boolean {
+  return !!pubkey && (c.author === pubkey || c.moderators.includes(pubkey));
+}
+
+/** True if `pubkey` owns this community (only the owner can edit its definition). */
+export function isOwner(c: Community, pubkey?: string | null): boolean {
+  return !!pubkey && c.author === pubkey;
+}
+
+/**
+ * Publish a NIP-72 moderator approval (kind:4550) for a post. Per spec the
+ * approval embeds the full approved event as JSON in its content (so clients can
+ * render the approved feed without a second fetch) and tags the community (`a`),
+ * the post (`e`), its author (`p`), and its kind (`k`).
+ */
+export async function publishApproval(
+  ndk: NDK,
+  community: Community,
+  post: NDKEvent
+): Promise<NDKEvent> {
+  const ev = new NDKEvent(ndk);
+  ev.kind = KIND_COMMUNITY_APPROVAL as NDKKind;
+  ev.content = JSON.stringify(post.rawEvent());
+  ev.tags = [
+    ["a", community.addr, "", community.author],
+    ["e", post.id],
+    ["p", post.pubkey],
+    ["k", String(post.kind ?? KIND_TEXT)],
+  ];
+  await ev.publish();
+  return ev;
+}
+
+/** Raw kind:4550 approval events for a community (for retraction / audit). */
+export function fetchApprovalEvents(ndk: NDK, addr: string): Promise<NDKEvent[]> {
+  return collectEvents(ndk, { kinds: [KIND_COMMUNITY_APPROVAL as NDKKind], "#a": [addr] }, 5000);
+}
+
+/**
+ * Republish a community definition (kind:34550, addressable) with edited
+ * metadata and/or moderator set. Only the owner can do this — the event is
+ * replaceable by (author, `d`), so a non-owner's republish creates a *different*
+ * community, not an edit. The owner is kept in the moderator set implicitly.
+ */
+export async function updateCommunity(
+  ndk: NDK,
+  community: Community,
+  patch: { name?: string; description?: string; image?: string; moderators?: string[] }
+): Promise<Community> {
+  const moderators = patch.moderators ?? community.moderators;
+  const image = patch.image ?? community.image;
+  const ev = new NDKEvent(ndk);
+  ev.kind = KIND_COMMUNITY as NDKKind;
+  ev.tags = [
+    ["d", community.id],
+    ["name", patch.name ?? community.name],
+    ["description", patch.description ?? community.description],
+    ...moderators.map((m) => ["p", m, "", "moderator"]),
+  ];
+  if (image) ev.tags.push(["image", image]);
+  await ev.publish();
+  return parseCommunity(ev);
+}
+
+/* ============================= NIP-56 reports ============================= */
+
+export const KIND_REPORT = 1984; // NIP-56 report
+
+export const REPORT_TYPES = [
+  "spam",
+  "nudity",
+  "profanity",
+  "illegal",
+  "impersonation",
+  "malware",
+  "other",
+] as const;
+export type ReportType = (typeof REPORT_TYPES)[number];
+
+export interface Report {
+  id: string;
+  reporter: string;
+  type: string;
+  targetEvent?: string;
+  targetPubkey?: string;
+  community?: string; // moot tags reports with the community so mods can triage
+  reason: string;
+  created_at: number;
+}
+
+/**
+ * Tags for a NIP-56 report (kind:1984). The report type is the 3rd entry of the
+ * `e`/`p` tag being reported. moot adds an `a` community tag (a superset
+ * extension other clients ignore) so a community's mods can find reports about
+ * their community in one query.
+ */
+export function buildReportTags(opts: {
+  type: ReportType;
+  targetEvent?: string;
+  targetPubkey?: string;
+  community?: string;
+}): string[][] {
+  const tags: string[][] = [];
+  if (opts.targetPubkey) tags.push(["p", opts.targetPubkey, opts.type]);
+  if (opts.targetEvent) tags.push(["e", opts.targetEvent, opts.type]);
+  if (opts.community) tags.push(["a", opts.community]);
+  return tags;
+}
+
+/** Parse a kind:1984 report. Null if it references neither an event nor a user. */
+export function parseReport(ev: NDKEvent): Report | null {
+  const e = ev.tags.find((t) => t[0] === "e");
+  const p = ev.tags.find((t) => t[0] === "p");
+  if (!e && !p) return null;
+  return {
+    id: ev.id ?? "",
+    reporter: ev.pubkey,
+    type: e?.[2] || p?.[2] || "other",
+    targetEvent: e?.[1],
+    targetPubkey: p?.[1],
+    community: ev.tags.find((t) => t[0] === "a")?.[1],
+    reason: ev.content ?? "",
+    created_at: ev.created_at ?? 0,
+  };
+}
+
+/** Publish a NIP-56 report. Requires a signer. */
+export async function publishReport(
+  ndk: NDK,
+  opts: { type: ReportType; targetEvent?: string; targetPubkey?: string; community?: string; reason?: string }
+): Promise<NDKEvent> {
+  const ev = new NDKEvent(ndk);
+  ev.kind = KIND_REPORT as NDKKind;
+  ev.content = opts.reason ?? "";
+  ev.tags = buildReportTags(opts);
+  await ev.publish();
+  return ev;
+}
+
+/** Fetch reports across a set of community coordinates (the mod's communities). */
+export function fetchReports(ndk: NDK, addrs: string[]): Promise<NDKEvent[]> {
+  if (addrs.length === 0) return Promise.resolve([]);
+  return collectEvents(ndk, { kinds: [KIND_REPORT as NDKKind], "#a": addrs }, 5000);
 }
 
 /** Create a community (kind:34550) with the signer as its first moderator. */

@@ -14,6 +14,7 @@ import {
 import { isMuted, useMutes } from "@/lib/mute";
 import { CommentHeader, ContentBody, ReplyBox } from "./parts";
 import { CommentActionBar } from "./PostActions";
+import { useMod } from "./ModContext";
 
 const TOP_PREVIEW = 3; // top-level comments shown before "Expand"
 
@@ -27,6 +28,8 @@ export function CommentColumn({
   onCount?: (n: number) => void;
 }) {
   const { ndk, canSign } = useNdk();
+  const mod = useMod();
+  const locked = !!root.id && !!mod?.state.locked.has(root.id); // advisory thread lock
   const mutes = useMutes(); // re-render + re-prune when the mute list changes
   const [tree, setTree] = useState<ThreadNode[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -86,7 +89,7 @@ export function CommentColumn({
           <span className="eyebrow">the record</span>
           <span className="meta">· sorted by likes</span>
         </div>
-        {canSign && (
+        {canSign && !locked && (
           <button
             type="button"
             onClick={() => setReplyingRoot((v) => !v)}
@@ -97,7 +100,15 @@ export function CommentColumn({
         )}
       </div>
 
-      {replyingRoot && (
+      {locked && (
+        <div className="mb-2 rounded border border-brass/40 bg-brass/5 px-2 py-1.5 text-[11px] text-muted">
+          🔒 A moderator locked this thread. moot honors the lock and disables
+          replies here; a permissionless network can’t enforce it, so other
+          clients may still allow replies.
+        </div>
+      )}
+
+      {replyingRoot && !locked && (
         <div className="mb-2">
           <ReplyBox placeholder="Add a reply…" busy={busy} autoFocus onSubmit={replyToRoot} draftKey={`reply:${root.id}`} />
         </div>
@@ -139,6 +150,8 @@ function CommentNode({
   onReplied: () => void;
 }) {
   const { ndk, canSign } = useNdk();
+  const mod = useMod();
+  const locked = !!root.id && !!mod?.state.locked.has(root.id);
   const [expanded, setExpanded] = useState(true);
   const [replying, setReplying] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -165,7 +178,7 @@ function CommentNode({
         <div className="mt-1">
           <CommentActionBar
             event={node.event}
-            onReply={canSign ? () => setReplying((v) => !v) : undefined}
+            onReply={canSign && !locked ? () => setReplying((v) => !v) : undefined}
             onToggle={() => setExpanded((v) => !v)}
             expanded={expanded}
             canToggle={hasChildren}

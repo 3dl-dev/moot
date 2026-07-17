@@ -77,6 +77,40 @@ tell a spammer's "GM" from a friend's. The three levers, strongest first:
 Scoping to a community (NIP-72) naturally drops the global-firehose spam, which
 is why communities led Phase 1.
 
+## Community moderation (Phase 3) — soft, client-advisory, honest
+
+A permissionless network **can't enforce** moderation: no server gates writes, so
+any client can ignore a moderator. moot's stance is to be a **superset reader**
+that honours moderation and says so plainly, rather than pretend it's authority.
+
+- **Approvals — NIP-72 `kind:4550`.** The canonical community feed is the
+  moderator-approved set, exactly what other NIP-72 clients read. `publishApproval`
+  embeds the full post (per spec) so any client renders it without a refetch.
+  moot's community view shows the approved set by default with an **All** toggle
+  (superset reader — nothing is hidden, only re-sorted).
+- **Everything NIP-72 leaves unspecified rides on NIP-32 labels (`kind:1985`)** —
+  public, namespaced, readable by anyone. Namespace `moot.mod` carries
+  `pin` / `lock` / `ban` / `remove` / `dismiss`; `moot.flair` carries flair text.
+  A label targets a post (`e`) or user (`p`), scoped to the community (`a`).
+  moot honours **only labels authored by that community's own moderators**
+  (`reduceModState`) — authorization is client-side, because it must be.
+- **Lock / temp-ban are advisory.** A locked thread disables replies **in moot**
+  with a visible note that other clients may still allow them. moot never claims
+  to have stopped anyone; it states what it does and what it can't.
+- **Remove is reversible and honest.** A `remove` label hides a post from members
+  in moot (mods still see it, to restore); if the post was approved, moot also
+  retracts its own `kind:4550` so honouring clients drop it. Other clients showing
+  the raw firehose are unaffected — and the UI copy says so.
+- **Reports — NIP-56 `kind:1984`.** Any member reports a post; moot adds an `a`
+  community tag (a superset extension others ignore) so a moderator sees reports
+  across *all* the communities they moderate in one queue. Acting on a report
+  writes a `remove`/`dismiss` label — that label stream **is** the auditable mod
+  log. Retraction of toggle-able labels (pin/lock/flair) is a NIP-09 deletion.
+
+Writes stay conservative (4550 approvals, 1984 reports, 1985 labels, all standard);
+the reader is permissive. Content policy (NSFW gating, NIP-36/32) is tracked
+separately.
+
 ## Authentication
 
 moot has no backend and holds no accounts, so "auth" means **where the private
