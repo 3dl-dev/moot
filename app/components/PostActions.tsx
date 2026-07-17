@@ -66,14 +66,17 @@ function BookmarkBtn({ event }: { event: NDKEvent }) {
  * is the network's current net score; the control shows baseline + your vote.
  */
 function useVote(event: NDKEvent, baseline: number) {
-  const { user, login } = useNdk();
+  const { user, login, canSign } = useNdk();
+  // Read-only npub: identity attached but no signer. Voting calls event.react()
+  // which needs to sign, so it would silently fail — disable it instead.
+  const readOnly = !!user && !canSign;
   const [vote, setVote] = useState<0 | 1 | -1>(0);
   const [busy, setBusy] = useState(false);
   const last = useRef<NDKEvent | null>(null);
 
   const cast = async (dir: 1 | -1) => {
-    if (!user) return login();
-    if (busy) return;
+    if (!user) return login(); // logged out → funnel to the login modal
+    if (readOnly || busy) return; // read-only can't sign; ignore the click
     setBusy(true);
     try {
       // Retract any prior reaction first (switching sides or toggling off).
@@ -98,12 +101,14 @@ function useVote(event: NDKEvent, baseline: number) {
     }
   };
 
-  return { vote, score: baseline + vote, up: () => cast(1), down: () => cast(-1) };
+  return { vote, score: baseline + vote, readOnly, up: () => cast(1), down: () => cast(-1) };
 }
 
 /** Reddit-style ▲ score ▼ control. The heart is dead; long live the downvote. */
 function VoteControl({ event, baseline = 0 }: { event: NDKEvent; baseline?: number }) {
-  const { vote, score, up, down } = useVote(event, baseline);
+  const { vote, score, readOnly, up, down } = useVote(event, baseline);
+  // Read-only sessions see the score but greyed, non-interactive arrows.
+  const arrowTip = readOnly ? "Log in with a signing key to vote" : undefined;
   return (
     <div className="inline-flex items-center">
       <button
@@ -111,8 +116,12 @@ function VoteControl({ event, baseline = 0 }: { event: NDKEvent; baseline?: numb
         aria-label="Upvote"
         aria-pressed={vote === 1}
         onClick={up}
-        className={`rounded p-1 transition-colors hover:bg-panel-2 ${
-          vote === 1 ? "text-accent" : "text-muted hover:text-text"
+        disabled={readOnly}
+        title={arrowTip}
+        className={`rounded p-1 transition-colors ${
+          readOnly
+            ? "cursor-not-allowed text-muted/40"
+            : `hover:bg-panel-2 ${vote === 1 ? "text-accent" : "text-muted hover:text-text"}`
         }`}
       >
         <Arrow dir="up" />
@@ -129,8 +138,12 @@ function VoteControl({ event, baseline = 0 }: { event: NDKEvent; baseline?: numb
         aria-label="Downvote"
         aria-pressed={vote === -1}
         onClick={down}
-        className={`rounded p-1 transition-colors hover:bg-panel-2 ${
-          vote === -1 ? "text-sky-400" : "text-muted hover:text-text"
+        disabled={readOnly}
+        title={arrowTip}
+        className={`rounded p-1 transition-colors ${
+          readOnly
+            ? "cursor-not-allowed text-muted/40"
+            : `hover:bg-panel-2 ${vote === -1 ? "text-sky-400" : "text-muted hover:text-text"}`
         }`}
       >
         <Arrow dir="down" />

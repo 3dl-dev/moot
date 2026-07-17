@@ -7,6 +7,7 @@ import { timeAgo, topicTags } from "@/lib/nostr";
 import { decodeNostrToken } from "@/lib/mentions";
 import { mutePubkey } from "@/lib/mute";
 import { getDraft, saveDraft } from "@/lib/drafts";
+import { useNdk } from "@/app/providers";
 import { AttachButton } from "./AttachButton";
 
 /* --------------------------------------------------------------- avatar */
@@ -40,6 +41,9 @@ function Avatar({ pubkey, img, size = 36 }: { pubkey: string; img?: string; size
 export function PostCardHeader({ event }: { event: NDKEvent }) {
   const profile = useProfile(event.pubkey);
   const img = profile?.image || profile?.picture;
+  // Follow writes a signed kind:3, so only surface it to signers — read-only
+  // and logged-out sessions can't follow. (`hide` stays: it's a local mute.)
+  const { canSign } = useNdk();
   return (
     <div className="flex items-start gap-2.5">
       <Avatar pubkey={event.pubkey} img={img} size={36} />
@@ -52,7 +56,7 @@ export function PostCardHeader({ event }: { event: NDKEvent }) {
         </div>
       </div>
       <div className="flex shrink-0 gap-1">
-        <StubButton>follow</StubButton>
+        {canSign && <StubButton>follow</StubButton>}
         <button
           type="button"
           onClick={() => mutePubkey(event.pubkey)}
