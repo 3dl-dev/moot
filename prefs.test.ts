@@ -12,12 +12,13 @@ const store = new Map<string, string>();
 
 const { getPrefs, setPref, DEFAULT_PREFS } = await import("./lib/prefs.ts");
 
-test("defaults: compact off, freeze-pill (not live), both notif categories on", () => {
+test("defaults: compact off, freeze-pill (not live), both notif categories on, no min-PoW", () => {
   assert.deepEqual(DEFAULT_PREFS, {
     compact: false,
     liveScroll: false,
     notifReplies: true,
     notifMentions: true,
+    minPow: 0,
   });
 });
 

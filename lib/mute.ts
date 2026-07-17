@@ -147,6 +147,17 @@ export function buildMuteTags(mutes: Mutes, preservedTags: string[][] = []): str
   ];
 }
 
+/** How many entries in `b` are NOT already in `a` — the count an import adds. */
+export function countNewMutes(a: Mutes, b: RemoteMutes): number {
+  const missing = (have: string[], incoming: string[]) =>
+    incoming.filter((x) => !have.includes(x)).length;
+  return (
+    missing(a.pubkeys, b.pubkeys) +
+    missing(a.words, b.words) +
+    missing(a.communities, b.communities)
+  );
+}
+
 /** Union two mute sets, de-duplicated. */
 export function mergeMutes(a: Mutes, b: RemoteMutes): Mutes {
   const uniq = (xs: string[]) => [...new Set(xs)];

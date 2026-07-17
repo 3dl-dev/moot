@@ -6,6 +6,7 @@ import { useNdk } from "@/app/providers";
 import { fetchEngagementScores, engagementScore, type Engagement } from "@/lib/nostr";
 import { useMutes, isMuted } from "@/lib/mute";
 import { isNsfw, useShowNsfw } from "@/lib/nsfw";
+import { meetsMinPow } from "@/lib/pow";
 import { usePrefs } from "@/lib/prefs";
 import { ReplyBox } from "./parts";
 import { PostRow } from "./PostRow";
@@ -48,7 +49,7 @@ export function Feed({
   const [scores, setScores] = useState<Map<string, Engagement>>(new Map());
   useMutes(); // re-render when the local mute list changes
   const showNsfw = useShowNsfw();
-  const { liveScroll } = usePrefs();
+  const { liveScroll, minPow } = usePrefs();
 
   const known = useRef(new Set<string>()); // dedupe across shown + pending
   const shownMap = useRef(new Map<string, NDKEvent>()); // currently displayed
@@ -161,7 +162,9 @@ export function Feed({
     }
   };
 
-  const visible = posts.filter((e) => !isMuted(e) && (showNsfw || !isNsfw(e)));
+  const visible = posts.filter(
+    (e) => !isMuted(e) && (showNsfw || !isNsfw(e)) && meetsMinPow(e, minPow)
+  );
   const shown =
     sort === "top"
       ? [...visible].sort(

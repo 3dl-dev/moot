@@ -8,6 +8,7 @@ import {
   mergeMutes,
   muteSuperset,
   isManagedMuteTag,
+  countNewMutes,
   type Mutes,
 } from "./lib/mute.ts";
 
@@ -117,4 +118,13 @@ test("muteSuperset detects when the remote list already covers local", () => {
   const missesOne = { pubkeys: ["bob"], words: [], communities: [] };
   assert.equal(muteSuperset(coversAll, local), true); // no republish needed
   assert.equal(muteSuperset(missesOne, local), false); // local has an extra -> republish
+});
+
+test("countNewMutes: only entries not already present count as imported", () => {
+  const local: Mutes = { pubkeys: ["alice"], words: ["spam"], communities: [] };
+  // bob + scam + ADDR are new; alice + spam already held.
+  const remote = { pubkeys: ["alice", "bob"], words: ["scam"], communities: [ADDR] };
+  assert.equal(countNewMutes(local, remote), 3);
+  // Importing a list you already fully cover adds nothing.
+  assert.equal(countNewMutes(local, { pubkeys: ["alice"], words: ["spam"], communities: [] }), 0);
 });

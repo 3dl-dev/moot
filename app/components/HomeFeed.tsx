@@ -14,6 +14,8 @@ import {
 } from "@/lib/nostr";
 import { isMuted, useMutes } from "@/lib/mute";
 import { isNsfw, useShowNsfw } from "@/lib/nsfw";
+import { meetsMinPow } from "@/lib/pow";
+import { usePrefs } from "@/lib/prefs";
 import { PostRow } from "./PostRow";
 import { ReplyBox } from "./parts";
 import type { View } from "@/lib/nav";
@@ -52,6 +54,7 @@ export function HomeFeed({ onNavigate }: { onNavigate: (v: View) => void }) {
   const [posting, setPosting] = useState(false);
   useMutes();
   const showNsfw = useShowNsfw();
+  const { minPow } = usePrefs();
   const reqId = useRef(0);
 
   useEffect(() => {
@@ -82,7 +85,12 @@ export function HomeFeed({ onNavigate }: { onNavigate: (v: View) => void }) {
   };
 
   const active = TABS.find((t) => t.id === sort)!;
-  const visible = (events ?? []).filter((e) => !isMuted(e) && (showNsfw || !isNsfw(e)));
+  // Min-PoW gates the raw firehose read (New); the Hot/Rising/Top tabs are
+  // already trust-ranked by moot's DVM, so PoW-filtering their curated output
+  // would only blank the front page (most good posts carry no PoW).
+  const visible = (events ?? []).filter(
+    (e) => !isMuted(e) && (showNsfw || !isNsfw(e)) && meetsMinPow(e, sort === "new" ? minPow : 0)
+  );
 
   return (
     <div className="min-w-0 flex-1">

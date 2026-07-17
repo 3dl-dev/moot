@@ -15,6 +15,11 @@ export interface Prefs {
   notifReplies: boolean;
   /** Show @-mention notifications. */
   notifMentions: boolean;
+  /**
+   * Minimum NIP-13 proof-of-work (leading-zero bits) a note must carry to appear
+   * in feeds. 0 = off (no PoW required). Anti-spam: drops the cheap firehose.
+   */
+  minPow: number;
 }
 
 export const DEFAULT_PREFS: Prefs = {
@@ -22,6 +27,7 @@ export const DEFAULT_PREFS: Prefs = {
   liveScroll: false,
   notifReplies: true,
   notifMentions: true,
+  minPow: 0,
 };
 
 const KEY = "moot.prefs.v1";

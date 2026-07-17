@@ -2,18 +2,23 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useNdk } from "@/app/providers";
-import { fetchFollows, isTopLevelNote, publishNote } from "@/lib/nostr";
+import { fetchFollows, fetchFollowsOfFollows, isTopLevelNote, publishNote } from "@/lib/nostr";
 import { Feed } from "./Feed";
 import type { View } from "@/lib/nav";
 
 /**
- * The WoT hop-1 feed: only people you follow. This is the antidote to the "All"
- * wasteland — trusted authors, so no spam heuristic needed. Requires login
- * (reads your NIP-02 contact list).
+ * The WoT feed: people you follow (hop-1), with an optional hop-2 toggle that
+ * widens it to follows-of-follows. This is the antidote to the "All" wasteland —
+ * trusted authors, so no spam heuristic needed. Requires login (reads your
+ * NIP-02 contact list; hop-2 additionally reads your follows' contact lists).
  */
 export function FollowingFeed({ onNavigate }: { onNavigate: (v: View) => void }) {
   const { ndk, user, login } = useNdk();
   const [follows, setFollows] = useState<string[] | null>(null);
+  const [hop2, setHop2] = useState(false);
+  // hop-2 author set: null = not built yet, [] = building. Only used when hop2 on.
+  const [hop2Authors, setHop2Authors] = useState<string[] | null>(null);
+  const [hop2Loading, setHop2Loading] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -27,6 +32,26 @@ export function FollowingFeed({ onNavigate }: { onNavigate: (v: View) => void })
       alive = false;
     };
   }, [ndk, user]);
+
+  // Lazily build the hop-2 set the first time the toggle is switched on. Cached
+  // for the session so re-toggling is instant.
+  useEffect(() => {
+    if (!hop2 || !user || follows === null || follows.length === 0) return;
+    if (hop2Authors !== null) return; // already built
+    let alive = true;
+    setHop2Loading(true);
+    fetchFollowsOfFollows(ndk, user.pubkey, follows)
+      .then((a) => alive && setHop2Authors(a))
+      .finally(() => alive && setHop2Loading(false));
+    return () => {
+      alive = false;
+    };
+  }, [hop2, ndk, user, follows, hop2Authors]);
+
+  // Rebuilding on a fresh follow set: drop the cached hop-2 authors.
+  useEffect(() => {
+    setHop2Authors(null);
+  }, [follows]);
 
   if (!user) {
     return (
@@ -76,15 +101,56 @@ export function FollowingFeed({ onNavigate }: { onNavigate: (v: View) => void })
     );
   }
 
+  // Widened only when hop-2 is on AND its fetch actually returned extra accounts;
+  // an empty/failed hop-2 fetch transparently falls back to hop-1 (label too).
+  const widened = hop2 && !!hop2Authors && hop2Authors.length > follows.length;
+  const authors = widened ? hop2Authors! : follows.slice(0, 500);
+  const label = widened
+    ? `following +follows-of-follows · ${authors.length}`
+    : `following · ${follows.length}`;
+  // Subtext under the toggle reflects the real outcome, not just the switch.
+  const hop2Note = !hop2
+    ? "widen to people your follows follow"
+    : hop2Loading
+      ? "widening your feed…"
+      : widened
+        ? "hop-2 accounts included"
+        : "no follows-of-follows found on your relays";
+
   return (
     <Feed
-      // Relays cap author lists; 500 covers all but the largest follow sets.
-      filters={{ kinds: [1], authors: follows.slice(0, 500), limit: 100 }}
+      // The Feed remounts on a changed author list (its effect keys on filters),
+      // so toggling hop-2 re-subscribes with the wider/narrower set.
+      filters={{ kinds: [1], authors: authors.slice(0, 800), limit: 100 }}
       accept={isTopLevelNote}
       publish={(ndk, text) => publishNote(ndk, text)}
-      toolbarLabel={`following · ${follows.length}`}
+      toolbarLabel={label}
       composerPlaceholder="Post to Nostr…"
       draftKey="post:following"
+      header={
+        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2 text-xs">
+          <div className="min-w-0">
+            <span className="font-medium text-text">Follows-of-follows</span>
+            <span className="ml-2 text-muted">{hop2Note}</span>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={hop2}
+            aria-label="Include follows-of-follows (hop-2)"
+            onClick={() => setHop2((v) => !v)}
+            className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
+              hop2 ? "bg-accent" : "bg-panel-2 ring-1 ring-inset ring-border"
+            }`}
+          >
+            <span
+              className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                hop2 ? "translate-x-4" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+      }
     />
   );
 }

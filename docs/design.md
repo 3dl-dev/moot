@@ -68,11 +68,18 @@ Spam on a permissionless network is a **trust** problem, not a **content**
 problem — **score the messenger, not the message.** Text classification can't
 tell a spammer's "GM" from a friend's. The three levers, strongest first:
 
-1. **Web-of-trust distance** — NIP-02 follows. Home = Following feed (hop-1,
-   shipped). Hop-2 is a follow-up.
-2. **Economic weight** — NIP-57 zaps and NIP-13 proof-of-work.
-3. **Delegated trust** — mutes/reports (NIP-51/NIP-56), NIP-72 approvals;
-   importable mute lists.
+1. **Web-of-trust distance** — NIP-02 follows. Following feed defaults to hop-1;
+   a **hop-2 toggle** widens it to follows-of-follows (`buildHop2Authors` /
+   `fetchFollowsOfFollows` in `lib/nostr.ts`, one ring outward, capped for relay
+   author-list limits; hop-3+ never enters). Ranking also weights each tier
+   (`TRUST_WEIGHT`/`AUTHOR_PRIOR` in `lib/rank.ts`).
+2. **Economic weight** — NIP-57 zaps and NIP-13 proof-of-work. A **minimum-PoW
+   feed filter** (`lib/pow.ts`, Settings → Anti-spam) drops notes below N
+   leading-zero bits — moot *measures* PoW but never *mints* it (conservative
+   writer).
+3. **Delegated trust** — mutes/reports (NIP-51/NIP-56), NIP-72 approvals.
+   **Importable block lists**: paste an npub to fold their public kind:10000 mute
+   list into your local filter (`importMuteListFrom` in `lib/mutesync.ts`).
 
 Scoping to a community (NIP-72) naturally drops the global-firehose spam, which
 is why communities led Phase 1.

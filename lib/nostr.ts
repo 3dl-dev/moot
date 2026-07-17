@@ -229,6 +229,83 @@ export async function fetchFollows(ndk: NDK, pubkey: string): Promise<string[]> 
   return [...new Set(latest.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]))];
 }
 
+/** The `p`-tag pubkeys of a NIP-02 contact list event (its follows). */
+export function followsOf(contactList: NDKEvent): string[] {
+  return contactList.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]);
+}
+
+/**
+ * Build the WoT hop-2 author set: everyone you follow (hop-1) PLUS everyone
+ * *they* follow (follows-of-follows), minus yourself. Pure so the ranking option
+ * is unit-testable: given your hop-1 set and the contact lists of those hop-1
+ * accounts, it returns the deduped extended author set. Hop-3+ never enters —
+ * we only union one ring outward. `cap` bounds the result for relay author-list
+ * limits (hop-1 is kept whole; hop-2 fills the remainder, order-stable).
+ */
+export function buildHop2Authors(
+  self: string,
+  hop1: string[],
+  hop1ContactLists: NDKEvent[],
+  cap = 800
+): string[] {
+  const hop1Set = new Set(hop1);
+  const ordered: string[] = [];
+  const seen = new Set<string>([self]);
+  for (const pk of hop1) {
+    if (!seen.has(pk)) {
+      seen.add(pk);
+      ordered.push(pk);
+    }
+  }
+  for (const list of hop1ContactLists) {
+    for (const pk of followsOf(list)) {
+      if (!seen.has(pk)) {
+        seen.add(pk);
+        ordered.push(pk);
+      }
+    }
+  }
+  // Never let the cap evict a hop-1 (core) author in favour of a hop-2 one.
+  if (ordered.length <= cap) return ordered;
+  const core = ordered.filter((pk) => hop1Set.has(pk));
+  const extended = ordered.filter((pk) => !hop1Set.has(pk));
+  return [...core, ...extended].slice(0, cap);
+}
+
+/**
+ * Fetch the follows-of-follows author set for hop-2 ranking. Reads the contact
+ * lists of (a bounded slice of) your hop-1 follows in one relay query, then
+ * unions per `buildHop2Authors`. Bounded on both ends: we only query the first
+ * `sampleFrom` hop-1 accounts (a large follow set already gives broad coverage)
+ * and cap the returned authors so the downstream relay filter stays legal.
+ */
+export async function fetchFollowsOfFollows(
+  ndk: NDK,
+  self: string,
+  hop1: string[],
+  sampleFrom = 200,
+  cap = 800
+): Promise<string[]> {
+  const sample = hop1.slice(0, sampleFrom);
+  if (sample.length === 0) return [];
+  const lists = await collectEvents(
+    ndk,
+    // Headroom over sample.length: relays may return several historical kind:3
+    // per author, and a tight limit would let a few authors' history crowd out
+    // others' current lists — under-fetching hop-2 coverage. We keep newest-per
+    // -author below, so over-fetching is harmless.
+    { kinds: [KIND_CONTACTS as NDKKind], authors: sample, limit: sample.length * 3 },
+    5000
+  );
+  // Keep only the newest contact list per author before unioning their follows.
+  const newest = new Map<string, NDKEvent>();
+  for (const ev of lists) {
+    const prev = newest.get(ev.pubkey);
+    if (!prev || (ev.created_at ?? 0) > (prev.created_at ?? 0)) newest.set(ev.pubkey, ev);
+  }
+  return buildHop2Authors(self, hop1, [...newest.values()], cap);
+}
+
 /**
  * Upload a file to a NIP-96 HTTP server, authenticated with a NIP-98 event,
  * and return the hosted URL. Requires a signer (login).

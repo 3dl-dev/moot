@@ -3,6 +3,7 @@ import { collectEvents } from "./nostr";
 import {
   KIND_MUTE_LIST,
   buildMuteTags,
+  countNewMutes,
   getMutes,
   mergeRemote,
   muteSuperset,
@@ -74,4 +75,34 @@ export async function syncMutesOnLogin(
 /** Stop syncing (on logout). Local mutes remain as the logged-out filter. */
 export function stopMuteSync(): void {
   setMutePublisher(null);
+}
+
+/** Outcome of importing someone else's block list. */
+export interface ImportResult {
+  /** New entries folded into the local filter (0 ⇒ nothing you didn't have). */
+  added: number;
+  /** True if a kind:10000 list was found for that pubkey at all. */
+  found: boolean;
+}
+
+/**
+ * Import another user's PUBLIC NIP-51 kind:10000 mute list (delegated trust) and
+ * union it into the local filter. Only public tags are read — their NIP-04
+ * private mutes are, by definition, unreadable to anyone else. If the local list
+ * changed and a publisher is registered (logged-in writer), the union
+ * republishes automatically via the mute store, so an import you make sticks to
+ * your own list too.
+ */
+export async function importMuteListFrom(ndk: NDK, pubkey: string): Promise<ImportResult> {
+  const events = await collectEvents(
+    ndk,
+    { kinds: [KIND_MUTE_LIST as NDKKind], authors: [pubkey], limit: 1 },
+    4000
+  );
+  const latest = events.sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0))[0] ?? null;
+  if (!latest) return { added: 0, found: false };
+  const remote = parseMuteTags(latest.tags);
+  const added = countNewMutes(getMutes(), remote);
+  if (added > 0) mergeRemote(remote); // triggers republish via the registered publisher
+  return { added, found: true };
 }
