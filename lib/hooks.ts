@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { NDKUserProfile } from "@nostr-dev-kit/ndk";
 import { getNdk } from "@/lib/ndk";
+import { fetchCommunitiesByAddr } from "@/lib/nostr";
 
 // Module-level cache so avatars/names don't refetch as you scroll.
 const cache = new Map<string, NDKUserProfile>();
@@ -35,6 +36,40 @@ export function useProfile(pubkey?: string): NDKUserProfile | null {
   }, [pubkey]);
 
   return profile;
+}
+
+// Cache community display names by coordinate so inline naddr refs resolve once.
+const communityNameCache = new Map<string, string>();
+
+/**
+ * Resolve a `34550:<pubkey>:<d>` community coordinate to its display name (for
+ * inline naddr refs). Null until fetched; cached module-wide. Falls back to the
+ * `d` identifier so a ref never renders blank.
+ */
+export function useCommunityName(addr?: string): string | null {
+  const [name, setName] = useState<string | null>(addr ? communityNameCache.get(addr) ?? null : null);
+
+  useEffect(() => {
+    if (!addr) return;
+    const cached = communityNameCache.get(addr);
+    if (cached) {
+      setName(cached);
+      return;
+    }
+    let alive = true;
+    fetchCommunitiesByAddr(getNdk(), [addr])
+      .then((cs) => {
+        const resolved = cs[0]?.name || addr.split(":").slice(2).join(":") || null;
+        if (resolved) communityNameCache.set(addr, resolved);
+        if (alive) setName(resolved);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [addr]);
+
+  return name;
 }
 
 /** Display name for a pubkey, falling back to a short hex. */

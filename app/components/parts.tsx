@@ -2,7 +2,7 @@
 
 import { NDKEvent } from "@nostr-dev-kit/ndk";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useProfile, displayName, handle } from "@/lib/hooks";
+import { useProfile, displayName, handle, useCommunityName } from "@/lib/hooks";
 import { timeAgo, topicTags } from "@/lib/nostr";
 import { decodeNostrToken } from "@/lib/mentions";
 import { mutePubkey } from "@/lib/mute";
@@ -140,6 +140,11 @@ export function ContentBody({ text, imeta = [] }: { text: string; imeta?: string
         if (nt.rest) nodes.push(nt.rest);
         return;
       }
+      if (nt.kind === "community") {
+        nodes.push(<CommunityRef key={`c${i}`} addr={nt.addr} bech32={nt.bech32} />);
+        if (nt.rest) nodes.push(nt.rest);
+        return;
+      }
       if (nt.kind === "ref") {
         nodes.push(
           <a
@@ -234,6 +239,22 @@ function Mention({ pubkey, bech32 }: { pubkey: string; bech32: string }) {
       className="font-medium text-accent hover:underline"
     >
       @{displayName(pubkey, profile)}
+    </a>
+  );
+}
+
+/** Inline naddr ref to a NIP-72 community, rendered as +CommunityName. */
+function CommunityRef({ addr, bech32 }: { addr: string; bech32: string }) {
+  const name = useCommunityName(addr);
+  return (
+    <a
+      href={`https://njump.me/${bech32}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="font-medium text-brass hover:underline"
+      title="NIP-72 community"
+    >
+      +{name ?? `${bech32.slice(0, 12)}…`}
     </a>
   );
 }

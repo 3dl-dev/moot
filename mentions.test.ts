@@ -29,3 +29,18 @@ test("plain words are not entities", () => {
   assert.equal(decodeNostrToken("hello").kind, null);
   assert.equal(decodeNostrToken("npubbish").kind, null);
 });
+
+test("decodes an naddr community (kind:34550) to its coordinate", () => {
+  const naddr = nip19.naddrEncode({ kind: 34550, pubkey: hex, identifier: "photography", relays: [] });
+  const t = decodeNostrToken(`nostr:${naddr}!`);
+  assert.equal(t.kind, "community");
+  if (t.kind === "community") {
+    assert.equal(t.addr, `34550:${hex}:photography`);
+    assert.equal(t.rest, "!");
+  }
+});
+
+test("a non-community naddr stays a generic ref", () => {
+  const naddr = nip19.naddrEncode({ kind: 30023, pubkey: hex, identifier: "my-article", relays: [] });
+  assert.equal(decodeNostrToken(naddr).kind, "ref");
+});

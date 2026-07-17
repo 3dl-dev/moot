@@ -1,7 +1,10 @@
 import { nip19 } from "nostr-tools";
 
+export const KIND_COMMUNITY = 34550; // NIP-72 community definition (addressable)
+
 export type NostrToken =
   | { kind: "npub"; pubkey: string; bech32: string; rest: string }
+  | { kind: "community"; addr: string; bech32: string; rest: string }
   | { kind: "ref"; bech32: string; rest: string }
   | { kind: null };
 
@@ -21,6 +24,13 @@ export function decodeNostrToken(raw: string): NostrToken {
     if (dec.type === "npub") return { kind: "npub", pubkey: dec.data as string, bech32, rest };
     if (dec.type === "nprofile")
       return { kind: "npub", pubkey: (dec.data as { pubkey: string }).pubkey, bech32, rest };
+    // An naddr pointing at a NIP-72 community (kind:34550) resolves to that
+    // community's coordinate, so we can render its name instead of a raw ref.
+    if (dec.type === "naddr") {
+      const d = dec.data as { kind: number; pubkey: string; identifier: string };
+      if (d.kind === KIND_COMMUNITY)
+        return { kind: "community", addr: `${KIND_COMMUNITY}:${d.pubkey}:${d.identifier}`, bech32, rest };
+    }
     return { kind: "ref", bech32, rest };
   } catch {
     return { kind: null };
