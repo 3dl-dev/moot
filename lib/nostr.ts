@@ -3,6 +3,7 @@ import NDK, { NDKEvent, type NDKFilter, type NDKKind } from "@nostr-dev-kit/ndk"
 // Kinds moot reads/writes in Phase 0.
 export const KIND_TEXT = 1; // NIP-01 short text note (root posts)
 export const KIND_COMMENT = 1111; // NIP-22 comment (replies)
+export const KIND_PICTURE = 20; // NIP-68 picture post (Olas et al.) — image in imeta, caption in content
 
 /**
  * Resolve an event's parent id for threading — the crux of interop.
@@ -396,6 +397,33 @@ export async function fetchCommunities(ndk: NDK, limit = 200): Promise<Community
   return [...best.values()].map((b) => b.c).sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/**
+ * Fetch specific community definitions by their `34550:<author>:<d>` coordinates
+ * — used to resolve a user's joined set (which is stored as bare coordinates) to
+ * renderable Community objects. Queries by author+d and filters to the exact
+ * coordinates asked for (the author/d filter is a cross-product superset).
+ */
+export async function fetchCommunitiesByAddr(ndk: NDK, addrs: string[]): Promise<Community[]> {
+  if (!addrs.length) return [];
+  const authors = [...new Set(addrs.map((a) => a.split(":")[1]).filter(Boolean))];
+  const ds = [...new Set(addrs.map((a) => a.split(":").slice(2).join(":")).filter(Boolean))];
+  const events = await collectEvents(
+    ndk,
+    { kinds: [KIND_COMMUNITY as NDKKind], authors, "#d": ds },
+    5000
+  );
+  const want = new Set(addrs);
+  const best = new Map<string, { c: Community; ts: number }>();
+  for (const ev of events) {
+    const c = parseCommunity(ev);
+    if (!want.has(c.addr)) continue;
+    const ts = ev.created_at ?? 0;
+    const prev = best.get(c.addr);
+    if (!prev || ts > prev.ts) best.set(c.addr, { c, ts });
+  }
+  return [...best.values()].map((b) => b.c).sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export const KIND_POLL = 1068; // NIP-88 poll (defined in lib/polls.ts; literal here avoids a cycle)
 
 /** Filters for a community's top-level posts (reads NIP-72 kind:1 + NIP-22 kind:1111 + NIP-88 polls). */
@@ -415,6 +443,26 @@ export const KIND_COMMUNITY_APPROVAL = 4550; // NIP-72 moderator post-approval
  * render as empty text in moot. Each `imeta` tag is space-delimited `key value`
  * parts; we want the `url …` one.
  */
+/**
+ * Hashtag-stuffing guard for topic feeds. Link-spam bots tag one post with
+ * dozens of unrelated hashtags so it surfaces in every topic; genuine posts use
+ * a handful. On-network the split is sharply bimodal — legit posts carry ≤6 `t`
+ * tags, spam ≥11, with almost nothing between (measured via scripts, see
+ * docs/design.md#anti-spam) — so a cap of 8 drops ~97% of the noise with no
+ * observed legitimate false positives.
+ */
+export const MAX_TOPIC_HASHTAGS = 8;
+
+/** Number of NIP-12 `t` (hashtag) tags on an event. Pure. */
+export function hashtagCount(ev: NDKEvent): number {
+  return ev.tags.reduce((n, t) => (t[0] === "t" ? n + 1 : n), 0);
+}
+
+/** True if an event carries more than `max` hashtags — i.e. looks stuffed. Pure. */
+export function isHashtagStuffed(ev: NDKEvent, max = MAX_TOPIC_HASHTAGS): boolean {
+  return hashtagCount(ev) > max;
+}
+
 export function imetaUrls(ev: NDKEvent): string[] {
   const urls: string[] = [];
   for (const t of ev.tags) {

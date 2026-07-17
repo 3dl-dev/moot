@@ -12,9 +12,11 @@ import {
   collectEvents,
   isTopLevelNote,
   looksLikeContent,
+  isHashtagStuffed,
   zapSats,
   KIND_TEXT,
   KIND_COMMENT,
+  KIND_PICTURE,
   KIND_REACTION,
   KIND_ZAP,
   KIND_CONTACTS,
@@ -122,9 +124,16 @@ export async function buildRankedFeeds(
   const pool = new Map<string, NDKEvent>();
   if (opts.topicTags?.length) {
     // Topic feed: recent posts carrying the topic's hashtags, network-wide.
+    // Include NIP-68 picture posts (kind:20) so photo/art topics show the actual
+    // images that photo-first clients (Olas) publish, not just text notes.
     const b = await collectEvents(
       ndk,
-      { kinds: [KIND_TEXT as NDKKind], "#t": opts.topicTags, since: now - hours * 3600, limit: 400 },
+      {
+        kinds: [KIND_TEXT, KIND_PICTURE] as NDKKind[],
+        "#t": opts.topicTags,
+        since: now - hours * 3600,
+        limit: 400,
+      },
       6000
     );
     for (const e of b) if (e.id) pool.set(e.id, e);
@@ -136,13 +145,22 @@ export async function buildRankedFeeds(
       for (const e of b) if (e.id) pool.set(e.id, e);
     }
   }
-  let candidates = [...pool.values()].filter(
-    (e) =>
-      isTopLevelNote(e) &&
-      looksLikeContent(e.content) &&
-      (e.created_at ?? 0) <= now - MIN_AGE &&
-      (e.created_at ?? 0) >= now - hours * 3600
-  );
+  const inWindow = (e: NDKEvent) =>
+    (e.created_at ?? 0) <= now - MIN_AGE && (e.created_at ?? 0) >= now - hours * 3600;
+  const isTopic = !!opts.topicTags?.length;
+  // A kind:20 picture post carries its content as an imeta image, not thread
+  // text, so it's top-level by definition and exempt from the looksLikeContent
+  // text gate (its caption is often empty). Text notes keep the classic gate.
+  // On topic feeds, drop hashtag-stuffed link-spam before ranking — bare topic
+  // tags (#art, #music, #food) are otherwise ~97% spam that crowds out the
+  // handful of genuine posts. The global feed doesn't gate on this: it isn't
+  // matched by hashtag and its trust-weighted ranking already sinks such posts.
+  const isCandidate = (e: NDKEvent) => {
+    if (!inWindow(e)) return false;
+    if (isTopic && isHashtagStuffed(e)) return false;
+    return e.kind === KIND_PICTURE || (isTopLevelNote(e) && looksLikeContent(e.content));
+  };
+  let candidates = [...pool.values()].filter(isCandidate);
   if (candidates.length > maxCandidates) {
     candidates.sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0));
     const stride = candidates.length / maxCandidates;

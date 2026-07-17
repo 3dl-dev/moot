@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { View } from "@/lib/nav";
 import { useMutes, muteWord, unmuteWord, clearMutes } from "@/lib/mute";
 import { useShowNsfw } from "@/lib/nsfw";
@@ -8,6 +8,8 @@ import { useNdk } from "@/app/providers";
 import { useLastRead, unreadCount } from "@/lib/notifications";
 import { useNotifications } from "@/lib/useNotifications";
 import { useLists } from "@/lib/lists";
+import { useMemberships } from "@/lib/membership";
+import { fetchCommunitiesByAddr, type Community } from "@/lib/nostr";
 
 /* Clean inline icons (stroke, 16px) — no glyph-font guesswork. */
 const I = {
@@ -211,6 +213,8 @@ export function LeftNav({
         )}
       </div>
 
+      <MyCommunities current={current} onNavigate={onNavigate} />
+
       <div className="mt-5 rounded-md border border-border p-3">
         <div className="eyebrow mb-1.5">Communities</div>
         <p className="mb-2 text-xs leading-relaxed text-muted">
@@ -281,5 +285,75 @@ export function LeftNav({
         )}
       </div>
     </nav>
+  );
+}
+
+/**
+ * "My communities" — the joined set (kind:30078) resolved to community defs and
+ * shown as quick-nav links, subreddit-sidebar style. Hidden until at least one
+ * joined community resolves, so logged-out or not-yet-joined users see nothing.
+ */
+function MyCommunities({
+  current,
+  onNavigate,
+}: {
+  current: View;
+  onNavigate: (v: View) => void;
+}) {
+  const { ndk } = useNdk();
+  const joined = useMemberships();
+  const [communities, setCommunities] = useState<Community[]>([]);
+  const key = joined.join(",");
+
+  useEffect(() => {
+    let alive = true;
+    if (!joined.length) {
+      setCommunities([]);
+      return;
+    }
+    fetchCommunitiesByAddr(ndk, joined).then((cs) => alive && setCommunities(cs));
+    return () => {
+      alive = false;
+    };
+    // key is the stable serialization of `joined`; ndk is a stable singleton.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ndk, key]);
+
+  if (communities.length === 0) return null;
+
+  return (
+    <div className="mt-5">
+      <div className="mb-1.5 flex items-center justify-between px-2.5">
+        <span className="eyebrow">My communities</span>
+        <button
+          type="button"
+          onClick={() => onNavigate({ kind: "communities" })}
+          className="meta hover:text-text"
+        >
+          browse
+        </button>
+      </div>
+      <ul className="space-y-0.5">
+        {communities.map((c) => {
+          const active = current.kind === "community" && current.community.addr === c.addr;
+          return (
+            <li key={c.addr} className="relative">
+              {active && (
+                <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-brass" />
+              )}
+              <button
+                type="button"
+                onClick={() => onNavigate({ kind: "community", community: c })}
+                className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[0.8125rem] transition-colors ${
+                  active ? "bg-panel-2 font-medium text-text" : "text-muted hover:bg-panel hover:text-text"
+                }`}
+              >
+                <span className="flex-1 truncate text-left">{c.name}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

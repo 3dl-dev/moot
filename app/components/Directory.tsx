@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useNdk } from "@/app/providers";
 import { fetchCommunities, type Community } from "@/lib/nostr";
+import { useMemberships } from "@/lib/membership";
 
 export function Directory({
   onOpen,
@@ -13,6 +14,7 @@ export function Directory({
 }) {
   const { ndk, canSign } = useNdk();
   const [items, setItems] = useState<Community[] | null>(null);
+  const joined = useMemberships();
 
   useEffect(() => {
     let alive = true;
@@ -57,7 +59,14 @@ export function Directory({
           >
             <CommunityAvatar community={c} />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold text-text">{c.name}</div>
+              <div className="flex items-center gap-1.5">
+                <span className="truncate text-sm font-semibold text-text">{c.name}</span>
+                {joined.includes(c.addr) && (
+                  <span className="shrink-0 rounded-full border border-brass/40 px-1.5 py-0.5 text-[0.625rem] font-medium leading-none text-brass">
+                    joined
+                  </span>
+                )}
+              </div>
               <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted">
                 {c.description || "No description."}
               </p>

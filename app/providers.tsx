@@ -16,6 +16,8 @@ import { installNostrconnectFetchTimeout } from "@/lib/nostr-login-timeout";
 import { stopMuteSync, syncMutesOnLogin } from "@/lib/mutesync";
 import { stopBookmarkSync, syncBookmarksOnLogin } from "@/lib/bookmarksync";
 import { stopListSync, syncListsOnLogin } from "@/lib/listsync";
+import { stopMembershipSync } from "@/lib/membership";
+import { syncMembershipsOnLogin } from "@/lib/membershipsync";
 
 interface NdkContextValue {
   ndk: NDK;
@@ -94,6 +96,7 @@ export function NdkProvider({ children }: { children: ReactNode }) {
           stopMuteSync();
           stopBookmarkSync();
           stopListSync();
+          stopMembershipSync();
           ndk.signer = undefined;
           setUser(null);
           setReadOnly(false);
@@ -114,6 +117,9 @@ export function NdkProvider({ children }: { children: ReactNode }) {
           void syncMutesOnLogin(ndk, u.pubkey, !t.readOnly).catch(() => {});
           void syncBookmarksOnLogin(ndk, u.pubkey, !t.readOnly).catch(() => {});
           void syncListsOnLogin(ndk, u.pubkey, !t.readOnly).catch(() => {});
+          // Joined communities are identity-scoped (kind:30078); hydrate for
+          // everyone, read-only included — the Join/Leave controls gate on canSign.
+          void syncMembershipsOnLogin(ndk, u.pubkey).catch(() => {});
         } catch {
           // The modal surfaces its own errors; leave state logged-out on failure.
         }

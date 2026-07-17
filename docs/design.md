@@ -84,6 +84,20 @@ tell a spammer's "GM" from a friend's. The three levers, strongest first:
 Scoping to a community (NIP-72) naturally drops the global-firehose spam, which
 is why communities led Phase 1.
 
+**Topic feeds — hashtag-stuffing guard.** Topic feeds match by hashtag (`#t`),
+which bypasses the WoT ranking's usual protection: bare topic tags (`#art`,
+`#music`, `#food`) are magnets for link-spam bots that stuff one post with dozens
+of unrelated hashtags to appear in every topic. On-network the `#t`-count split
+is sharply bimodal — genuine posts carry ≤6 hashtags, spam ≥11, with almost
+nothing between — so the topic candidate path drops any post above
+`MAX_TOPIC_HASHTAGS` (8) before ranking (`isHashtagStuffed` in `lib/nostr.ts`).
+This removes ~97% of the noise with no observed legitimate false positives, and
+lets the topic tag lists keep the high-reach bare tags. It's scoped to topic
+feeds only — the global feed isn't matched by hashtag and its trust-weighted
+ranking already sinks such posts. Topic feeds also read NIP-68 picture posts
+(`kind:20`) alongside `kind:1`, so photo-first topics show the images Olas et al.
+publish (the image rides in an `imeta` tag, exempt from the text-content gate).
+
 ## Community moderation (Phase 3) — soft, client-advisory, honest
 
 A permissionless network **can't enforce** moderation: no server gates writes, so
@@ -117,6 +131,21 @@ that honours moderation and says so plainly, rather than pretend it's authority.
 Writes stay conservative (4550 approvals, 1984 reports, 1985 labels, all standard);
 the reader is permissive. Content policy (NSFW gating, NIP-36/32) is tracked
 separately.
+
+**Membership / join (subreddit-style).** The only join convention on-network
+(published by the bchnostr client) records membership as a NIP-78 app-data event:
+`kind:30078`, content `{"role":"member"}`, a `34550:` community coordinate in an
+`a` tag, and a replaceable `d` of `bchnostr/community-member/<addr>`. moot is a
+conservative writer, so it writes that **exact** `d` namespace — a moot join and
+a bchnostr join for the same community are then the *same* replaceable event,
+mutually visible and de-duplicated rather than two competing records; leaving is
+a NIP-09 delete. As a superset reader, moot doesn't rely on that namespace when
+reading others' memberships: it matches on `kind:30078` + a `34550:` a-tag +
+`content.role === "member"` (which also keeps sibling app-data like bchnostr's
+`community-pin` from being mistaken for membership). `lib/membership.ts` holds the
+store (`useMemberships`, `joinCommunity`, `leaveCommunity`); it hydrates from the
+user's own events on login (`lib/membershipsync.ts`) and drives the community
+Join/Leave button plus a "My communities" nav shortcut.
 
 ## Authentication
 
