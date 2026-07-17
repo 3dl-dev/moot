@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { NDKUserProfile } from "@nostr-dev-kit/ndk";
 import { getNdk } from "@/lib/ndk";
-import { fetchCommunitiesByAddr } from "@/lib/nostr";
+import { fetchCommunitiesByAddr, fetchFollows, fetchProfilesFor } from "@/lib/nostr";
+import type { MentionCandidate } from "@/lib/mentions";
 
 // Module-level cache so avatars/names don't refetch as you scroll.
 const cache = new Map<string, NDKUserProfile>();
@@ -70,6 +71,54 @@ export function useCommunityName(addr?: string): string | null {
   }, [addr]);
 
   return name;
+}
+
+// Module-level cache of a user's mention candidates (follows + profiles), so the
+// composer dropdown is instant after the first fetch and doesn't refetch per box.
+const contactsCache = new Map<string, MentionCandidate[]>();
+
+/**
+ * The current user's @-mentionable contacts: their NIP-02 follows named via a
+ * batched kind:0 profile fetch (see fetchProfilesFor), sorted alphabetically.
+ * Fetched once per session per user and cached module-wide. Returns [] until
+ * loaded or when logged out. Powers compose-time @mention autocomplete.
+ */
+export function useContacts(self?: string): MentionCandidate[] {
+  const [contacts, setContacts] = useState<MentionCandidate[]>(() =>
+    self ? contactsCache.get(self) ?? [] : []
+  );
+
+  useEffect(() => {
+    if (!self) {
+      setContacts([]);
+      return;
+    }
+    const cached = contactsCache.get(self);
+    if (cached) {
+      setContacts(cached);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      const ndk = getNdk();
+      const follows = await fetchFollows(ndk, self);
+      const profiles = follows.length ? await fetchProfilesFor(ndk, follows) : new Map();
+      const list: MentionCandidate[] = follows
+        .map((pubkey) => {
+          const p = profiles.get(pubkey);
+          return { pubkey, name: p?.name ?? "", nip05: p?.nip05 };
+        })
+        .filter((c) => c.name || c.nip05)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      contactsCache.set(self, list);
+      if (alive) setContacts(list);
+    })().catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [self]);
+
+  return contacts;
 }
 
 /** Display name for a pubkey, falling back to a short hex. */

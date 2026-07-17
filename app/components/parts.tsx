@@ -2,9 +2,16 @@
 
 import { NDKEvent } from "@nostr-dev-kit/ndk";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useProfile, displayName, handle, useCommunityName } from "@/lib/hooks";
+import { useProfile, displayName, handle, useCommunityName, useContacts } from "@/lib/hooks";
 import { timeAgo, topicTags } from "@/lib/nostr";
-import { decodeNostrToken } from "@/lib/mentions";
+import {
+  decodeNostrToken,
+  findMentionQuery,
+  rankMentions,
+  insertMention,
+  type MentionCandidate,
+  type MentionQuery,
+} from "@/lib/mentions";
 import { mutePubkey } from "@/lib/mute";
 import { getDraft, saveDraft } from "@/lib/drafts";
 import { useNdk } from "@/app/providers";
@@ -366,25 +373,118 @@ export function ReplyBox({
   useEffect(() => {
     if (draftKey) saveDraft(draftKey, text);
   }, [draftKey, text]);
+
+  // ---- @mention autocomplete: suggest follows as you type `@name` ----------
+  const { user } = useNdk();
+  const contacts = useContacts(user?.pubkey);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  const [menu, setMenu] = useState<{
+    q: MentionQuery;
+    items: MentionCandidate[];
+    active: number;
+  } | null>(null);
+
+  // Recompute the suggestion menu from the current caret position.
+  const syncMenu = (value: string, caret: number) => {
+    const q = findMentionQuery(value, caret);
+    if (!q) return setMenu(null);
+    const items = rankMentions(contacts, q.query);
+    setMenu(items.length ? { q, items, active: 0 } : null);
+  };
+
+  // Replace the active @query with the chosen contact's nostr:npub mention.
+  const choose = (c: MentionCandidate) => {
+    if (!menu) return;
+    const { text: next, caret } = insertMention(text, menu.q.start, menu.q.end, c.pubkey);
+    setText(next);
+    setMenu(null);
+    requestAnimationFrame(() => {
+      const ta = taRef.current;
+      if (ta) {
+        ta.focus();
+        ta.setSelectionRange(caret, caret);
+      }
+    });
+  };
+
   const send = async () => {
     const t = text.trim();
     if (!t || busy) return;
+    setMenu(null);
     await onSubmit(t);
     setText("");
   };
   return (
     <div className="rounded-md border border-border bg-panel-2 p-2 focus-within:border-brass/40">
-      <textarea
-        value={text}
-        autoFocus={autoFocus}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") send();
-        }}
-        placeholder={placeholder}
-        rows={3}
-        className="w-full resize-y bg-transparent text-[0.875rem] text-text placeholder:text-muted focus:outline-none"
-      />
+      <div className="relative">
+        <textarea
+          ref={taRef}
+          value={text}
+          autoFocus={autoFocus}
+          onChange={(e) => {
+            setText(e.target.value);
+            syncMenu(e.target.value, e.target.selectionStart ?? e.target.value.length);
+          }}
+          onClick={(e) => syncMenu(e.currentTarget.value, e.currentTarget.selectionStart ?? 0)}
+          onKeyDown={(e) => {
+            if (menu) {
+              const n = menu.items.length;
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                return setMenu({ ...menu, active: (menu.active + 1) % n });
+              }
+              if (e.key === "ArrowUp") {
+                e.preventDefault();
+                return setMenu({ ...menu, active: (menu.active - 1 + n) % n });
+              }
+              if (e.key === "Enter" || e.key === "Tab") {
+                e.preventDefault();
+                return choose(menu.items[menu.active]);
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                return setMenu(null);
+              }
+            }
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") send();
+          }}
+          onKeyUp={(e) => {
+            // keep the menu in sync when the caret moves without editing text
+            if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key))
+              syncMenu(e.currentTarget.value, e.currentTarget.selectionStart ?? 0);
+          }}
+          onBlur={() => setMenu(null)}
+          placeholder={placeholder}
+          rows={3}
+          className="w-full resize-y bg-transparent text-[0.875rem] text-text placeholder:text-muted focus:outline-none"
+        />
+        {menu && (
+          <ul className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-md border border-border bg-panel shadow-lg">
+            {menu.items.map((c, i) => (
+              <li key={c.pubkey}>
+                <button
+                  type="button"
+                  // onMouseDown (not onClick) so the pick fires before the
+                  // textarea's onBlur closes the menu.
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    choose(c);
+                  }}
+                  onMouseEnter={() => setMenu({ ...menu, active: i })}
+                  className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[0.8125rem] ${
+                    i === menu.active ? "bg-panel-2 text-text" : "text-muted"
+                  }`}
+                >
+                  <span className="truncate font-medium text-text">
+                    {c.name || `${c.pubkey.slice(0, 10)}…`}
+                  </span>
+                  {c.nip05 && <span className="truncate text-xs text-muted">{c.nip05}</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       <div className="mt-1 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <AttachButton

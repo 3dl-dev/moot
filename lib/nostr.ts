@@ -230,6 +230,52 @@ export async function fetchFollows(ndk: NDK, pubkey: string): Promise<string[]> 
   return [...new Set(latest.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]))];
 }
 
+/** A lightweight kind:0 profile — just the fields @mention autocomplete needs. */
+export interface ProfileLite {
+  name: string;
+  nip05?: string;
+}
+
+/**
+ * Batch-fetch kind:0 profiles for a set of pubkeys, keeping the newest per
+ * author and parsing out display name + nip05. Used to name the follow set for
+ * compose-time @mention suggestions (see lib/mentions.ts). Best-effort: authors
+ * with no/parse-broken profile are simply absent from the map.
+ *
+ * Authors are chunked (relays silently drop very large `authors` filters — a
+ * single 400-author query returns almost nothing, but 100-author chunks return
+ * ~all of them), and the chunks run concurrently.
+ */
+export async function fetchProfilesFor(
+  ndk: NDK,
+  pubkeys: string[]
+): Promise<Map<string, ProfileLite>> {
+  const map = new Map<string, ProfileLite>();
+  if (pubkeys.length === 0) return map;
+  const CHUNK = 100;
+  const chunks: string[][] = [];
+  for (let i = 0; i < pubkeys.length; i += CHUNK) chunks.push(pubkeys.slice(i, i + CHUNK));
+  const results = await Promise.all(
+    chunks.map((authors) => collectEvents(ndk, { kinds: [0 as NDKKind], authors }, 4000))
+  );
+  const newest = new Map<string, NDKEvent>();
+  for (const e of results.flat()) {
+    const cur = newest.get(e.pubkey);
+    if (!cur || (e.created_at ?? 0) > (cur.created_at ?? 0)) newest.set(e.pubkey, e);
+  }
+  for (const [pk, e] of newest) {
+    try {
+      const j = JSON.parse(e.content) as Record<string, unknown>;
+      const name = String(j.display_name || j.displayName || j.name || "");
+      const nip05 = typeof j.nip05 === "string" ? j.nip05 : undefined;
+      if (name || nip05) map.set(pk, { name, nip05 });
+    } catch {
+      // ignore unparseable profile content
+    }
+  }
+  return map;
+}
+
 /** The `p`-tag pubkeys of a NIP-02 contact list event (its follows). */
 export function followsOf(contactList: NDKEvent): string[] {
   return contactList.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]);
