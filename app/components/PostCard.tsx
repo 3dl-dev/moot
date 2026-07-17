@@ -4,8 +4,28 @@ import { NDKEvent } from "@nostr-dev-kit/ndk";
 import type { Engagement } from "@/lib/nostr";
 import { imetaUrls } from "@/lib/nostr";
 import { isNsfw } from "@/lib/nsfw";
+import { isPoll } from "@/lib/polls";
 import { PostCardHeader, TopicChips, ContentBody, Foldable, NsfwGate } from "./parts";
 import { PostActionBar } from "./PostActions";
+import { PostModBar } from "./PostModBar";
+import { Poll } from "./Poll";
+import { useMod } from "./ModContext";
+
+/** Moderator-assigned flair chips for a post, shown inside a community. */
+function FlairChips({ event }: { event: NDKEvent }) {
+  const mod = useMod();
+  const flairs = event.id ? mod?.state.flairs.get(event.id) : undefined;
+  if (!flairs || flairs.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {flairs.map((f) => (
+        <span key={f} className="rounded-full border border-brass/50 px-2 py-0.5 text-[11px] text-brass">
+          {f}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 export function PostCard({
   event,
@@ -29,19 +49,25 @@ export function PostCard({
             </span>
           </div>
         )}
+        <FlairChips event={event} />
         <TopicChips event={event} />
-        <Foldable>
-          {isNsfw(event) ? (
-            <NsfwGate>
+        {isPoll(event) ? (
+          <Poll event={event} />
+        ) : (
+          <Foldable>
+            {isNsfw(event) ? (
+              <NsfwGate>
+                <ContentBody text={event.content} imeta={imetaUrls(event)} />
+              </NsfwGate>
+            ) : (
               <ContentBody text={event.content} imeta={imetaUrls(event)} />
-            </NsfwGate>
-          ) : (
-            <ContentBody text={event.content} imeta={imetaUrls(event)} />
-          )}
-        </Foldable>
+            )}
+          </Foldable>
+        )}
       </div>
       <div className="mt-auto border-t border-border px-2 py-1.5">
         <PostActionBar event={event} replyCount={replyCount} netScore={rank?.reactions} />
+        <PostModBar event={event} />
       </div>
     </article>
   );

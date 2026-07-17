@@ -14,6 +14,7 @@ export type View =
   | { kind: "discover" } // DVM algorithmic-feed directory
   | { kind: "dvm"; provider: DvmProvider }
   | { kind: "notifications" } // replies & mentions of the logged-in user
+  | { kind: "mod-queue" } // moderation: reports queue + mod log across your communities
   | { kind: "saved" } // your NIP-51 kind:10003 bookmarked posts
   | { kind: "history" } // your own posts, comments & reactions
   | { kind: "search" } // NIP-50 search over posts & profiles
