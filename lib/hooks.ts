@@ -5,9 +5,13 @@ import type { NDKUserProfile } from "@nostr-dev-kit/ndk";
 import { getNdk } from "@/lib/ndk";
 import { fetchCommunitiesByAddr, fetchFollows, fetchProfilesFor } from "@/lib/nostr";
 import type { MentionCandidate } from "@/lib/mentions";
+import { loadAll as loadProfiles, save as saveProfile } from "@/lib/profilecache";
 
-// Module-level cache so avatars/names don't refetch as you scroll.
-const cache = new Map<string, NDKUserProfile>();
+// Module-level cache so avatars/names don't refetch as you scroll. Seeded from
+// localStorage so the FIRST paint of a fresh session already has real names and
+// avatars from the previous visit — no more one-by-one pop-in. The network fetch
+// then refreshes each entry in place.
+const cache = new Map<string, NDKUserProfile>(loadProfiles());
 
 /** Lazily fetch and cache a user's kind:0 profile. */
 export function useProfile(pubkey?: string): NDKUserProfile | null {
@@ -27,7 +31,10 @@ export function useProfile(pubkey?: string): NDKUserProfile | null {
       .getUser({ pubkey })
       .fetchProfile()
       .then((p) => {
-        if (p) cache.set(pubkey, p);
+        if (p) {
+          cache.set(pubkey, p);
+          saveProfile(pubkey, p); // persist for the next visit's first paint
+        }
         if (alive) setProfile(p ?? null);
       })
       .catch(() => {});

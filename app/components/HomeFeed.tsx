@@ -7,11 +7,14 @@ import { readLatestDvmFeed, hydrateEvents, MOOT_DVM_PUBKEY, MOOT_FEED_TAGS } fro
 import {
   collectEvents,
   fetchEngagementScores,
+  fetchRepliesForRoots,
   isTopLevelNote,
   looksLikeContent,
+  orderByDiscussion,
   publishNote,
   type Engagement,
 } from "@/lib/nostr";
+import { seedThreads } from "@/lib/threadcache";
 import { isMuted, useMutes } from "@/lib/mute";
 import { isNsfw, useShowNsfw } from "@/lib/nsfw";
 import { meetsMinPow } from "@/lib/pow";
@@ -20,15 +23,24 @@ import { PostRow } from "./PostRow";
 import { ReplyBox } from "./parts";
 import type { View } from "@/lib/nav";
 
-type Sort = "hot" | "rising" | "top" | "new" | "controversial";
+type Sort = "buzzing" | "hot" | "rising" | "top" | "new" | "controversial";
 
 const TABS: { id: Sort; label: string; blurb: string }[] = [
+  { id: "buzzing", label: "Buzzing", blurb: "live conversations — posts with replies lead" },
   { id: "hot", label: "Hot", blurb: "what the network is discussing right now" },
   { id: "rising", label: "Rising", blurb: "posts gaining traction fast" },
   { id: "top", label: "Top", blurb: "the most-engaged posts in the window" },
   { id: "new", label: "New", blurb: "the latest posts, newest first" },
   { id: "controversial", label: "Controversial", blurb: "the most argued-over — the ratio" },
 ];
+
+// "Buzzing" reuses the DVM's Hot candidate set, then reorders it discussion-first
+// on the client. The other DVM tabs map to their own precomputed feed tag.
+const feedTagFor = (sort: Sort) => (sort === "buzzing" ? "hot" : sort) as
+  | "hot"
+  | "rising"
+  | "top"
+  | "controversial";
 
 /** Recent top-level content notes, newest first (the client-side "New" sort). */
 async function loadNew(ndk: ReturnType<typeof useNdk>["ndk"]): Promise<NDKEvent[]> {
@@ -47,9 +59,10 @@ async function loadNew(ndk: ReturnType<typeof useNdk>["ndk"]): Promise<NDKEvent[
  */
 export function HomeFeed({ onNavigate }: { onNavigate: (v: View) => void }) {
   const { ndk, canSign } = useNdk();
-  const [sort, setSort] = useState<Sort>("hot");
+  const [sort, setSort] = useState<Sort>("buzzing");
   const [events, setEvents] = useState<NDKEvent[] | null>(null); // null = loading
   const [scores, setScores] = useState<Map<string, Engagement>>(new Map());
+  const [threads, setThreads] = useState<Map<string, number>>(new Map()); // id → reply count
   const [composing, setComposing] = useState(false);
   const [posting, setPosting] = useState(false);
   useMutes();
@@ -61,15 +74,26 @@ export function HomeFeed({ onNavigate }: { onNavigate: (v: View) => void }) {
     const id = ++reqId.current;
     setEvents(null);
     setScores(new Map());
+    setThreads(new Map());
     (async () => {
       const evs =
         sort === "new"
           ? await loadNew(ndk)
-          : await hydrateEvents(ndk, await readLatestDvmFeed(ndk, MOOT_DVM_PUBKEY, MOOT_FEED_TAGS[sort]));
+          : await hydrateEvents(ndk, await readLatestDvmFeed(ndk, MOOT_DVM_PUBKEY, MOOT_FEED_TAGS[feedTagFor(sort)]));
       if (id !== reqId.current) return; // a newer tab click won
-      setEvents(evs);
-      const s = await fetchEngagementScores(ndk, evs.map((e) => e.id).filter(Boolean));
-      if (id === reqId.current) setScores(s);
+      setEvents(evs); // paint posts immediately in DVM order…
+      const ids = evs.map((e) => e.id).filter(Boolean);
+      // Reactions/zaps for the score badges.
+      fetchEngagementScores(ndk, ids).then((s) => {
+        if (id === reqId.current) setScores(s);
+      });
+      // Bulk-fetch every visible post's replies once: seeds the comment panes so
+      // they paint instantly (no per-row spinner) AND yields reply counts so
+      // "Buzzing" can reorder discussion-first when they arrive.
+      const replyMap = await fetchRepliesForRoots(ndk, ids);
+      if (id !== reqId.current) return;
+      seedThreads(replyMap);
+      setThreads(new Map([...replyMap].map(([rid, list]) => [rid, list.length])));
     })();
   }, [ndk, sort]);
 
@@ -88,9 +112,13 @@ export function HomeFeed({ onNavigate }: { onNavigate: (v: View) => void }) {
   // Min-PoW gates the raw firehose read (New); the Hot/Rising/Top tabs are
   // already trust-ranked by moot's DVM, so PoW-filtering their curated output
   // would only blank the front page (most good posts carry no PoW).
-  const visible = (events ?? []).filter(
+  const filtered = (events ?? []).filter(
     (e) => !isMuted(e) && (showNsfw || !isNsfw(e)) && meetsMinPow(e, sort === "new" ? minPow : 0)
   );
+  // Buzzing leads with real conversations: reorder discussion-first once reply
+  // counts land (until then it shows in DVM order, then the threads bubble up).
+  const visible =
+    sort === "buzzing" ? orderByDiscussion(filtered, (id) => threads.get(id) ?? 0) : filtered;
 
   return (
     <div className="min-w-0 flex-1">

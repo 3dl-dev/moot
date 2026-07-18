@@ -9,10 +9,12 @@ import {
   imetaUrls,
   pruneMutedThread,
   publishReply,
+  subscribeReplies,
   type ThreadNode,
 } from "@/lib/nostr";
 import { isMuted, useMutes } from "@/lib/mute";
-import { CommentHeader, ContentBody, ReplyBox } from "./parts";
+import { getThread, setThread } from "@/lib/threadcache";
+import { CommentHeader, ContentBody, ReplyBox, ThreadSkeleton } from "./parts";
 import { CommentActionBar } from "./PostActions";
 import { useMod } from "./ModContext";
 
@@ -27,7 +29,7 @@ export function CommentColumn({
   active: boolean;
   onCount?: (n: number) => void;
 }) {
-  const { ndk, canSign } = useNdk();
+  const { ndk, canSign, login } = useNdk();
   const mod = useMod();
   const locked = !!root.id && !!mod?.state.locked.has(root.id); // advisory thread lock
   const mutes = useMutes(); // re-render + re-prune when the mute list changes
@@ -38,24 +40,37 @@ export function CommentColumn({
   const [replyingRoot, setReplyingRoot] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // Manual one-shot refresh (used after posting a reply). Streaming below is the
+  // primary path; this just re-pulls once and updates the cache + tree.
   const load = useCallback(async () => {
     if (!root.id) return;
-    setLoading(true);
-    try {
-      // Reads BOTH conventions (NIP-10 kind:1 + NIP-22 kind:1111) with a
-      // hard time cap so the column never hangs on a silent relay.
-      const events = await fetchReplies(ndk, root.id);
-      setTree(buildThread(events, root.id));
-      setLoaded(true);
-    } finally {
-      setLoading(false);
-    }
+    const events = await fetchReplies(ndk, root.id);
+    setThread(root.id, events);
+    setTree(buildThread(events, root.id));
+    setLoaded(true);
   }, [ndk, root.id]);
 
-  // Fetch once, when the row scrolls near the viewport.
+  // When the row scrolls near the viewport, paint any cached thread instantly,
+  // then stream replies in progressively so the first ones show in ~200ms
+  // instead of blocking on EOSE. Reads BOTH conventions (see subscribeReplies).
   useEffect(() => {
-    if (active && !loaded && !loading) load();
-  }, [active, loaded, loading, load]);
+    if (!active || !root.id) return;
+    const rootId = root.id;
+    const cached = getThread(rootId);
+    if (cached) {
+      setTree(buildThread(cached, rootId));
+      setLoaded(true);
+    } else {
+      setLoading(true);
+    }
+    const stop = subscribeReplies(ndk, rootId, (events) => {
+      setThread(rootId, events);
+      setTree(buildThread(events, rootId));
+      setLoaded(true);
+      setLoading(false);
+    });
+    return stop;
+  }, [active, ndk, root.id]);
 
   const replyToRoot = async (text: string) => {
     setBusy(true);
@@ -115,11 +130,24 @@ export function CommentColumn({
       )}
 
       <div className="min-h-0 flex-1">
-        {!loaded && (loading || active) && (
-          <p className="py-2 text-xs text-muted">Loading replies…</p>
-        )}
-        {loaded && tree.length === 0 && (
-          <p className="py-2 text-xs text-muted">No replies yet.</p>
+        {!loaded && (loading || active) && <ThreadSkeleton />}
+        {loaded && tree.length === 0 && !replyingRoot && (
+          locked ? (
+            <p className="py-2 text-xs text-muted">No replies — thread locked.</p>
+          ) : (
+            // An empty thread is an invitation, not a tombstone. Turn the dead
+            // "No replies yet." into an open-mic call so a quiet firehose feels
+            // joinable instead of abandoned (the ghost-town antidote).
+            <button
+              type="button"
+              onClick={() => (canSign ? setReplyingRoot(true) : login())}
+              className="flex w-full flex-col items-center gap-0.5 rounded-md border border-dashed border-brass/30 px-3 py-4 text-center transition-colors hover:border-brass/60 hover:bg-brass/5"
+            >
+              <span className="text-base leading-none">💬</span>
+              <span className="text-xs font-medium text-text">Quiet in here — be the first</span>
+              <span className="meta">{canSign ? "Start the discussion →" : "Log in to weigh in →"}</span>
+            </button>
+          )
         )}
         {visible.map((node) => (
           <CommentNode key={node.event.id} node={node} root={root} depth={0} onReplied={load} />

@@ -142,16 +142,138 @@ export function collectEvents(
   });
 }
 
+/** Filters for every reply to a root across BOTH conventions (NIP-10 + NIP-22). */
+function replyFilters(rootId: string): NDKFilter[] {
+  return [
+    { kinds: [KIND_TEXT, KIND_COMMENT], "#e": [rootId] },
+    { kinds: [KIND_TEXT, KIND_COMMENT], "#E": [rootId] },
+  ];
+}
+
 /** All replies to a root event across BOTH threading conventions (NIP-10 + NIP-22). */
 export function fetchReplies(ndk: NDK, rootId: string, capMs = 5000): Promise<NDKEvent[]> {
-  return collectEvents(
-    ndk,
-    [
-      { kinds: [KIND_TEXT, KIND_COMMENT], "#e": [rootId] },
-      { kinds: [KIND_TEXT, KIND_COMMENT], "#E": [rootId] },
-    ],
-    capMs
+  return collectEvents(ndk, replyFilters(rootId), capMs);
+}
+
+/**
+ * Stream replies to a root as they arrive so the comment column paints
+ * progressively — the first replies show in ~200ms instead of blocking on EOSE
+ * or the time cap. `onEvents` is called with the accumulated, deduped set,
+ * coalesced across bursts so we don't thrash React. Reads BOTH conventions.
+ * Closes on EOSE (one-shot, like the old fetch) with a hard cap so a silent
+ * relay can't leave the subscription dangling. Returns a stop() for cleanup.
+ */
+export function subscribeReplies(
+  ndk: NDK,
+  rootId: string,
+  onEvents: (events: NDKEvent[]) => void,
+  capMs = 6000
+): () => void {
+  const events = new Map<string, NDKEvent>();
+  const sub = ndk.subscribe(replyFilters(rootId), { closeOnEose: true });
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let stopped = false;
+  const emit = () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    onEvents([...events.values()]);
+  };
+  const stop = () => {
+    if (stopped) return;
+    stopped = true;
+    if (timer) clearTimeout(timer);
+    clearTimeout(cap);
+    sub.stop();
+  };
+  sub.on("event", (e: NDKEvent) => {
+    if (!e.id || events.has(e.id)) return;
+    events.set(e.id, e);
+    // Trailing-coalesce a burst of arrivals into one render ~80ms later.
+    if (!timer) timer = setTimeout(emit, 80);
+  });
+  sub.on("eose", emit);
+  const cap = setTimeout(stop, capMs);
+  return stop;
+}
+
+/**
+ * Attribute a flat pile of reply events to the root(s) they reference. A reply
+ * counts for a root if any of its `e`/`E` tags points at that root id (NIP-10
+ * root/reply markers and NIP-22 `E`). Deduped per root. Pure — the batched
+ * network read (fetchRepliesForRoots) is a thin wrapper, so the attribution and
+ * counting logic is unit-testable without relays.
+ */
+export function attributeReplies(
+  rootIds: string[],
+  events: NDKEvent[]
+): Map<string, NDKEvent[]> {
+  const wanted = new Set(rootIds);
+  const out = new Map<string, NDKEvent[]>();
+  const seen = new Map<string, Set<string>>();
+  for (const id of rootIds) {
+    out.set(id, []);
+    seen.set(id, new Set());
+  }
+  for (const ev of events) {
+    if (!ev.id) continue;
+    for (const t of ev.tags) {
+      if ((t[0] === "e" || t[0] === "E") && wanted.has(t[1])) {
+        const dedup = seen.get(t[1])!;
+        if (!dedup.has(ev.id)) {
+          dedup.add(ev.id);
+          out.get(t[1])!.push(ev);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Batched reply fetch for many roots at once — one query per ~40 roots, run
+ * concurrently, across BOTH conventions. Powers the front page's discussion-
+ * first ranking and bulk-seeds the thread cache so comment panes paint instantly
+ * (see lib/threadcache.ts). Returns root id → its (deduped) reply set.
+ */
+export async function fetchRepliesForRoots(
+  ndk: NDK,
+  rootIds: string[],
+  capMs = 6000
+): Promise<Map<string, NDKEvent[]>> {
+  if (rootIds.length === 0) return new Map();
+  const CHUNK = 40;
+  const chunks: string[][] = [];
+  for (let i = 0; i < rootIds.length; i += CHUNK) chunks.push(rootIds.slice(i, i + CHUNK));
+  const results = await Promise.all(
+    chunks.map((ids) =>
+      collectEvents(
+        ndk,
+        [
+          { kinds: [KIND_TEXT, KIND_COMMENT], "#e": ids },
+          { kinds: [KIND_TEXT, KIND_COMMENT], "#E": ids },
+        ],
+        capMs
+      )
+    )
   );
+  return attributeReplies(rootIds, results.flat());
+}
+
+/**
+ * Stable-sort items so the ones with the most discussion lead. Ties preserve the
+ * input order (the DVM's rank), so this reorders *toward* conversations without
+ * discarding the underlying ranking. Pure and unit-testable.
+ */
+export function orderByDiscussion<T extends { id: string }>(
+  items: T[],
+  replyCount: (id: string) => number
+): T[] {
+  return items
+    .map((item, i) => ({ item, i, n: replyCount(item.id) }))
+    .sort((a, b) => b.n - a.n || a.i - b.i)
+    .map((x) => x.item);
 }
 
 /** Publish a new top-level text note (kind:1) to the global feed. */

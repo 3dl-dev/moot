@@ -92,6 +92,34 @@ export function CommentHeader({ event }: { event: NDKEvent }) {
   );
 }
 
+/* --------------------------------------------------------------- skeletons */
+
+/** One shimmering placeholder comment (avatar dot + two text lines). */
+function CommentSkeletonRow() {
+  return (
+    <div className="flex gap-2 py-1.5">
+      <div className="skeleton mt-0.5 h-5 w-5 shrink-0 rounded-full" />
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="skeleton h-2.5 w-24" />
+        <div className="skeleton h-2.5 w-full" />
+        <div className="skeleton h-2.5 w-4/5" />
+      </div>
+    </div>
+  );
+}
+
+/** Placeholder thread shown while a comment column's replies stream in. */
+export function ThreadSkeleton() {
+  return (
+    <div aria-hidden className="py-1">
+      <CommentSkeletonRow />
+      <div className="ml-2 border-l border-border pl-2.5 opacity-70">
+        <CommentSkeletonRow />
+      </div>
+    </div>
+  );
+}
+
 function StubButton({ children }: { children: ReactNode }) {
   return (
     <button

@@ -8,6 +8,7 @@ import { useMutes, isMuted } from "@/lib/mute";
 import { isNsfw, useShowNsfw } from "@/lib/nsfw";
 import { meetsMinPow } from "@/lib/pow";
 import { usePrefs } from "@/lib/prefs";
+import { loadFeed, saveFeed } from "@/lib/feedcache";
 import { ReplyBox } from "./parts";
 import { PostRow } from "./PostRow";
 
@@ -82,6 +83,17 @@ export function Feed({
     setScores(new Map());
     setPrimedState(false);
 
+    // Warm start: paint last session's snapshot instantly, then let the live
+    // subscription merge fresh events on top (deduped via known/shownMap).
+    for (const raw of loadFeed(key)) {
+      const ev = new NDKEvent(ndk, raw);
+      if (ev.id && !known.current.has(ev.id) && accept(ev)) {
+        known.current.add(ev.id);
+        shownMap.current.set(ev.id, ev);
+      }
+    }
+    if (shownMap.current.size > 0) flushShown();
+
     const sub = ndk.subscribe(filters, { closeOnEose: false });
     sub.on("event", (event: NDKEvent) => {
       if (!event.id || known.current.has(event.id) || !accept(event)) return;
@@ -115,9 +127,15 @@ export function Feed({
     setScores((prev) => new Map([...prev, ...s]));
   };
 
-  // Pre-warm once the initial batch has frozen.
+  // Snapshot the currently-shown posts so the next mount paints instantly.
+  const snapshot = () => saveFeed(key, [...shownMap.current.values()].map((e) => e.rawEvent()));
+
+  // Pre-warm scores once the initial batch has frozen, and snapshot it.
   useEffect(() => {
-    if (primedState) warmScores([...shownMap.current.values()]);
+    if (primedState) {
+      warmScores([...shownMap.current.values()]);
+      snapshot();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [primedState]);
 
@@ -127,6 +145,7 @@ export function Feed({
     setPendingCount(0);
     flushShown();
     warmScores([...shownMap.current.values()]);
+    snapshot();
   };
 
   // Turning on live-scroll releases whatever's queued behind the pill right away.

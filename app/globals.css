@@ -104,6 +104,30 @@ body {
   animation: rowin 0.25s ease-out both;
 }
 
+/* Skeleton shimmer — a moving highlight so loading states read as "alive"
+   rather than a static spinner. Used while threads/feed hydrate. */
+@keyframes shimmer {
+  100% {
+    background-position: -200% 0;
+  }
+}
+.skeleton {
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--panel-2) 0%,
+    var(--border) 50%,
+    var(--panel-2) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
 /* Accessibility floor */
 :focus-visible {
   outline: 2px solid var(--accent);
