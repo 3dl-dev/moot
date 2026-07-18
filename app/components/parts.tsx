@@ -2,6 +2,7 @@
 
 import { NDKEvent } from "@nostr-dev-kit/ndk";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useProfile, displayName, handle, useCommunityName, useContacts } from "@/lib/hooks";
 import { timeAgo, topicTags } from "@/lib/nostr";
 import {
@@ -157,6 +158,51 @@ const VID_RE = /\.(mp4|webm|mov|m4v)(\?|$)/i;
 const YT_RE = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{11})/i;
 const VIMEO_RE = /vimeo\.com\/(\d+)/i;
 
+/**
+ * A feed image shown **uncropped** at its natural aspect ratio (bounded so it
+ * can't dominate a row), with click-to-zoom into a full-size lightbox. Replaces
+ * the old `object-cover` thumbnail, which hard-cropped every tall image and
+ * could never be expanded — "Read more" only released the card clamp, never the
+ * image's own crop. Now the whole image is always visible, and a click opens it
+ * full-size; Esc or a backdrop click closes.
+ */
+function MediaImage({ src }: { src: string }) {
+  const [zoom, setZoom] = useState(false);
+
+  useEffect(() => {
+    if (!zoom) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setZoom(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [zoom]);
+
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt=""
+        onClick={() => setZoom(true)}
+        // natural aspect ratio, no crop: max-w/max-h bound it, w/h stay auto.
+        className="max-h-[32rem] w-auto max-w-full cursor-zoom-in rounded-md border border-border"
+        loading="lazy"
+      />
+      {zoom &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            onClick={() => setZoom(false)}
+            className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/90 p-4"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={src} alt="" className="max-h-full max-w-full rounded object-contain" />
+          </div>,
+          document.body
+        )}
+    </>
+  );
+}
+
 /** Render note content: linkify URLs, inline images, embed video. `imeta` holds
  *  extra image URLs from NIP-92 tags (photo-first posts) to append if not
  *  already present in the text. */
@@ -203,23 +249,14 @@ export function ContentBody({ text, imeta = [] }: { text: string; imeta?: string
     const yt = tok.match(YT_RE);
     const vimeo = tok.match(VIMEO_RE);
     if (IMG_RE.test(tok)) {
-      embeds.push(
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={`e${i}`}
-          src={tok}
-          alt=""
-          className="max-h-80 w-full rounded-md border border-border object-cover"
-          loading="lazy"
-        />
-      );
+      embeds.push(<MediaImage key={`e${i}`} src={tok} />);
     } else if (VID_RE.test(tok)) {
       embeds.push(
         <video
           key={`e${i}`}
           src={tok}
           controls
-          className="max-h-80 w-full rounded-md border border-border"
+          className="max-h-[32rem] w-auto max-w-full rounded-md border border-border"
         />
       );
     } else if (yt) {
@@ -244,16 +281,7 @@ export function ContentBody({ text, imeta = [] }: { text: string; imeta?: string
   // Append NIP-92 imeta images that weren't already inlined from the text.
   imeta.forEach((url, i) => {
     if (text.includes(url)) return;
-    embeds.push(
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        key={`im${i}`}
-        src={url}
-        alt=""
-        className="max-h-96 w-full rounded-md border border-border object-cover"
-        loading="lazy"
-      />
-    );
+    embeds.push(<MediaImage key={`im${i}`} src={url} />);
   });
 
   return (
