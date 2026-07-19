@@ -11,6 +11,7 @@ import { CommunityFeed } from "./components/CommunityFeed";
 import { CreateCommunity } from "./components/CreateCommunity";
 import { DvmDirectory } from "./components/DvmDirectory";
 import { DvmFeed } from "./components/DvmFeed";
+import { ExploreFeed } from "./components/ExploreFeed";
 import { ContentSettings } from "./components/ContentSettings";
 import { Notifications } from "./components/Notifications";
 import { ModQueue } from "./components/ModQueue";
@@ -70,7 +71,9 @@ export default function Home() {
             />
           )}
 
-          {view.kind === "discover" && (
+          {view.kind === "discover" && <ExploreFeed onNavigate={setView} />}
+
+          {view.kind === "dvm-directory" && (
             <DvmDirectory onOpen={(provider) => setView({ kind: "dvm", provider })} />
           )}
 

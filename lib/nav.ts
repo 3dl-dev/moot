@@ -11,7 +11,8 @@ export type View =
   | { kind: "create-community" }
   | { kind: "topics" } // topic-feed directory (hashtag slices across Nostr)
   | { kind: "topic"; topic: Topic }
-  | { kind: "discover" } // DVM algorithmic-feed directory
+  | { kind: "discover" } // blended algorithmic discovery feed (ExploreFeed)
+  | { kind: "dvm-directory" } // picker of external NIP-90 feed providers
   | { kind: "dvm"; provider: DvmProvider }
   | { kind: "notifications" } // replies & mentions of the logged-in user
   | { kind: "mod-queue" } // moderation: reports queue + mod log across your communities

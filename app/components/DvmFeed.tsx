@@ -70,7 +70,7 @@ export function DvmFeed({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => onNavigate({ kind: "discover" })}
+            onClick={() => onNavigate({ kind: "dvm-directory" })}
             className="meta hover:text-text"
           >
             ‹ all feeds

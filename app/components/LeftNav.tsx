@@ -119,7 +119,7 @@ export function LeftNav({
       label: "Explore",
       icon: I.explore,
       view: { kind: "discover" },
-      activeKinds: ["discover", "dvm"],
+      activeKinds: ["discover", "dvm-directory", "dvm"],
     },
     { label: "About", icon: I.about, activeKinds: [] },
   ];

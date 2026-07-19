@@ -19,10 +19,11 @@ export function DvmDirectory({ onOpen }: { onOpen: (p: DvmProvider) => void }) {
   return (
     <div className="mx-auto max-w-4xl p-4">
       <div className="mb-4">
-        <div className="eyebrow">explore · algorithmic feeds</div>
+        <div className="eyebrow">explore · feed providers</div>
         <p className="mt-0.5 text-sm text-muted">
           Feeds computed by independent providers (NIP-90 DVMs). moot reads their latest ranked
           result — pick any algorithm, no lock-in. Log in to request a fresh, personalized run.
+          moot’s own Explore blends these into one discovery feed.
         </p>
       </div>
 
